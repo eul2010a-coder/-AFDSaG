@@ -1,33 +1,38 @@
 local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
-local function DisableCameraCollision()
- 
-    Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam  
+local function ForceCameraNoclip()
+    -- Основные способы
+    Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
     
-
+    -- Патч метатаблицы (защита от перезаписи)
     local mt = getrawmetatable(Camera)
     setreadonly(mt, false)
     
     local oldNewIndex = mt.__newindex
-    
     mt.__newindex = newcclosure(function(self, key, value)
         if self == Camera and key == "DevCameraOcclusionMode" then
             return oldNewIndex(self, key, Enum.DevCameraOcclusionMode.Invisicam)
         end
         return oldNewIndex(self, key, value)
     end)
-    
     setreadonly(mt, true)
+    
+    -- Дополнительно ищем и отключаем Popper (внутренний модуль камеры)
+    for _, v in pairs(Camera:GetDescendants()) do
+        if v.Name == "Popper" or v.Name:find("Popper") then
+            v:Destroy()
+        end
+    end
 end
 
-DisableCameraCollision()
+-- Запускаем сразу
+ForceCameraNoclip()
 
+-- Очень агрессивная поддержка каждый кадр
+RunService.RenderStepped:Connect(ForceCameraNoclip)
 
-RunService.RenderStepped:Connect(function()
-    if Camera.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
-        Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
-    end
-end)
+-- Дополнительно на Heartbeat
+RunService.Heartbeat:Connect(ForceCameraNoclip)
 
-print("Камера теперь проходит сквозь стены (Invisicam)")
+print("✅ Камера Noclip активирована (усиленная версия)")
