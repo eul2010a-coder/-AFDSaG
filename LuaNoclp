@@ -1,0 +1,33 @@
+local Camera = workspace.CurrentCamera
+local RunService = game:GetService("RunService")
+
+local function DisableCameraCollision()
+ 
+    Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam  
+    
+
+    local mt = getrawmetatable(Camera)
+    setreadonly(mt, false)
+    
+    local oldNewIndex = mt.__newindex
+    
+    mt.__newindex = newcclosure(function(self, key, value)
+        if self == Camera and key == "DevCameraOcclusionMode" then
+            return oldNewIndex(self, key, Enum.DevCameraOcclusionMode.Invisicam)
+        end
+        return oldNewIndex(self, key, value)
+    end)
+    
+    setreadonly(mt, true)
+end
+
+DisableCameraCollision()
+
+
+RunService.RenderStepped:Connect(function()
+    if Camera.DevCameraOcclusionMode ~= Enum.DevCameraOcclusionMode.Invisicam then
+        Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
+    end
+end)
+
+print("Камера теперь проходит сквозь стены (Invisicam)")
