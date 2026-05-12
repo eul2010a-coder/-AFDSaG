@@ -1,39 +1,45 @@
-local Camera = workspace.CurrentCamera
 local RunService = game:GetService("RunService")
 
+local Camera = nil
+
+-- Ждём появления CurrentCamera
+repeat
+    Camera = workspace:FindFirstChild("CurrentCamera")
+    task.wait(0.1)
+until Camera
+
+print("Camera найдена!")
+
 local function ForceNoclip()
-    if not Camera then return end
-    
     Camera.DevCameraOcclusionMode = Enum.DevCameraOcclusionMode.Invisicam
     
-    -- Защита через метатаблицу
+    -- Усиленный хук
     local mt = getrawmetatable(Camera)
     setreadonly(mt, false)
     
     local oldNewIndex = mt.__newindex
-    
     mt.__newindex = newcclosure(function(self, key, value)
         if self == Camera and key == "DevCameraOcclusionMode" then
             return oldNewIndex(self, key, Enum.DevCameraOcclusionMode.Invisicam)
         end
         return oldNewIndex(self, key, value)
     end)
-    
     setreadonly(mt, true)
     
-    -- Удаляем Popper (главный виновник остановки камеры)
-    for _, obj in pairs(Camera:GetDescendants()) do
-        if obj.Name:find("Popper") or obj.Name == "CameraOcclusion" then
-            obj:Destroy()
+    -- Удаляем все Popper'ы
+    for _, v in pairs(Camera:GetDescendants()) do
+        if v.Name:lower():find("popper") or v.Name:find("Occlusion") then
+            pcall(function() v:Destroy() end)
         end
     end
 end
 
--- Запуск
+-- Запускаем
 ForceNoclip()
 
--- Постоянная поддержка
+-- Максимально агрессивная поддержка
 RunService.RenderStepped:Connect(ForceNoclip)
 RunService.Heartbeat:Connect(ForceNoclip)
+RunService.Stepped:Connect(ForceNoclip)
 
-print("✅ Камера Noclip включена (workspace.CurrentCamera)")
+print("✅ Камера Noclip должна работать (усиленная)")
