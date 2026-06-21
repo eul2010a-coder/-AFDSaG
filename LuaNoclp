@@ -9,6 +9,96 @@ local Camera = Workspace.CurrentCamera
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
+-- ============ КОНФИГУРАЦИЯ СЕРВЕРА ============
+local SERVER_URL = "http://45.131.186.75:80"
+
+-- ============ HTTP ДЛЯ DELTA ============
+local function encodeText(text)
+	text = string.gsub(text, " ", "%%20")
+	text = string.gsub(text, "\n", "%%0A")
+	text = string.gsub(text, "\r", "%%0D")
+	text = string.gsub(text, "&", "%%26")
+	text = string.gsub(text, "=", "%%3D")
+	text = string.gsub(text, "?", "%%3F")
+	text = string.gsub(text, "#", "%%23")
+	text = string.gsub(text, "%%", "%%25")
+	return text
+end
+
+local function httpRequest(method, url, data)
+	local headers = {}
+	if data then
+		headers["Content-Type"] = "application/json"
+	end
+
+	if http and http.request then
+		local response = http.request({
+			Url = url,
+			Method = method,
+			Headers = headers,
+			Data = data or ""
+		})
+		if response and response.StatusCode == 200 then
+			return response.Body
+		end
+	end
+
+	if request then
+		local response = request({
+			Url = url,
+			Method = method,
+			Headers = headers,
+			Data = data or ""
+		})
+		if response and response.StatusCode == 200 then
+			return response.Body
+		end
+	end
+
+	return nil
+end
+
+-- ============ ФУНКЦИИ РАБОТЫ С СЕРВЕРОМ ============
+
+-- Зарегистрировать игрока на сервере
+local function registerPlayerOnServer()
+	local url = SERVER_URL .. "/api/players"
+	local data = {
+		playerId = tostring(player.UserId),
+		playerName = player.Name,
+		displayName = player.DisplayName or player.Name,
+		userId = player.UserId
+	}
+	local jsonData = HttpService:JSONEncode(data)
+
+	print("📡 Регистрация на сервере...")
+	local response = httpRequest("POST", url, jsonData)
+
+	if response then
+		print("✅ Зарегистрирован на сервере!")
+		return true
+	else
+		print("❌ Ошибка регистрации")
+		return false
+	end
+end
+
+-- Получить список игроков с сервера
+local function getServerPlayers()
+	local url = SERVER_URL .. "/api/players"
+	local response = httpRequest("GET", url)
+
+	if response then
+		local data = HttpService:JSONDecode(response)
+		if data and data.players then
+			return data.players
+		end
+	end
+	return {}
+end
+
+-- ============ GUI ============
+
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Parent = player.PlayerGui
 ScreenGui.Name = "SheetRatGUI"
@@ -106,6 +196,7 @@ ContentFrame.Size = UDim2.new(1, -20, 1, -85)
 ContentFrame.Position = UDim2.new(0, 10, 0, 75)
 ContentFrame.BackgroundTransparency = 1
 
+-- USERS FRAME (все игроки Roblox)
 local UsersFrame = Instance.new("ScrollingFrame")
 UsersFrame.Parent = ContentFrame
 UsersFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -116,7 +207,7 @@ UsersFrame.ScrollBarThickness = 6
 UsersFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
 UsersFrame.Visible = true
 
--- НОВАЯ ВКЛАДКА ServerSide
+-- SERVERSIDE FRAME (только игроки с сервера)
 local ServerSideFrame = Instance.new("ScrollingFrame")
 ServerSideFrame.Parent = ContentFrame
 ServerSideFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -157,6 +248,8 @@ AboutFrame.Size = UDim2.new(1, 0, 1, 0)
 AboutFrame.BackgroundTransparency = 1
 AboutFrame.Visible = false
 
+-- ============ ПЕРЕМЕННЫЕ ============
+
 local selectedPlayer = nil
 local freeCameraActive = false
 local freeCameraConnection = nil
@@ -169,6 +262,7 @@ local followConnection = nil
 local isMinimized = false
 local isHidden = false
 local playerJoinTimes = {}
+local serverPlayersData = {} -- Кэш игроков с сервера
 
 local MenuPopup = Instance.new("Frame")
 MenuPopup.Parent = ScreenGui
@@ -205,6 +299,8 @@ MenuPopupContent.Parent = MenuPopup
 MenuPopupContent.Size = UDim2.new(1, 0, 1, -25)
 MenuPopupContent.Position = UDim2.new(0, 0, 0, 25)
 MenuPopupContent.BackgroundTransparency = 1
+
+-- ============ NOTIFICATION ============
 
 local NotificationFrame = Instance.new("Frame")
 NotificationFrame.Parent = ScreenGui
@@ -251,6 +347,8 @@ NotificationInfo.TextXAlignment = Enum.TextXAlignment.Left
 NotificationInfo.TextYAlignment = Enum.TextYAlignment.Top
 NotificationInfo.LineHeight = 1.4
 
+-- ============ ФУНКЦИИ ============
+
 local function formatTime(seconds)
 	local hrs = math.floor(seconds / 3600)
 	local mins = math.floor((seconds % 3600) / 60)
@@ -284,7 +382,7 @@ local function showNotification(playerObj)
 	NotificationFrame.Position = UDim2.new(1, -370, 1, 10)
 
 	NotificationName.Text = "Name: "..(playerObj.DisplayName or playerObj.Name)
-	NotificationInfo.Text = "Username: @"..playerObj.Name.."\nID: "..playerObj.UserId.."\nAccount Age: "..(playerObj.AccountAge or "Unknown").." days"
+	NotificationInfo.Text = "Username: @"..playerObj.Name.."\nID: "..playerObj.UserId
 
 	local tween1 = TweenService:Create(NotificationFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 		Position = UDim2.new(1, -370, 1, -140),
@@ -292,7 +390,6 @@ local function showNotification(playerObj)
 	})
 
 	tween1:Play()
-
 	task.wait(4)
 
 	local tween2 = TweenService:Create(NotificationFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
@@ -305,6 +402,8 @@ local function showNotification(playerObj)
 		NotificationFrame.Visible = false
 	end)
 end
+
+-- ============ КАМЕРА ФУНКЦИИ ============
 
 local function freezePlayer()
 	local char = player.Character
@@ -377,7 +476,7 @@ local function showPlayerInfo(playerObj)
 	infoText.Size = UDim2.new(1, -20, 1, -40)
 	infoText.Position = UDim2.new(0, 10, 0, 40)
 	infoText.BackgroundTransparency = 1
-	infoText.Text = "Name: "..(playerObj.DisplayName or playerObj.Name).."\nUsername: @"..playerObj.Name.."\nUserID: "..playerObj.UserId.."\nAccount Age: "..(playerObj.AccountAge or "Unknown").." days\nDisplay Name: "..(playerObj.DisplayName or playerObj.Name).."\nStatus: Online"
+	infoText.Text = "Name: "..(playerObj.DisplayName or playerObj.Name).."\nUsername: @"..playerObj.Name.."\nUserID: "..playerObj.UserId.."\nStatus: Online"
 	infoText.TextColor3 = Color3.fromRGB(180, 180, 200)
 	infoText.TextSize = 14
 	infoText.Font = Enum.Font.GothamMedium
@@ -385,6 +484,8 @@ local function showPlayerInfo(playerObj)
 	infoText.TextYAlignment = Enum.TextYAlignment.Top
 	infoText.LineHeight = 1.8
 end
+
+-- ============ ФУНКЦИИ КАМЕРЫ ============
 
 local function toggleFollowPlayer(playerObj)
 	followActive = not followActive
@@ -578,12 +679,11 @@ local function toggleSpectate()
 	updateMenuPopup(selectedPlayer)
 end
 
--- ФУНКЦИЯ ДЛЯ ПОКАЗА РЕЖИМА ИГРОКА
+-- Функция для показа режима игрока
 local function showPlayerMode(playerObj)
 	local modeText = "● Idle"
 	local modeColor = Color3.fromRGB(200, 200, 200)
-	
-	-- Проверяем режим текущего игрока
+
 	if playerObj == player then
 		if spectateActive then
 			modeText = "● Spectating"
@@ -596,7 +696,6 @@ local function showPlayerMode(playerObj)
 			modeColor = Color3.fromRGB(100, 255, 100)
 		end
 	else
-		-- Проверяем, не следит ли кто-то за этим игроком
 		if selectedPlayer == playerObj and spectateActive then
 			modeText = "● Being Spectated"
 			modeColor = Color3.fromRGB(255, 200, 100)
@@ -605,8 +704,7 @@ local function showPlayerMode(playerObj)
 			modeColor = Color3.fromRGB(255, 200, 100)
 		end
 	end
-	
-	-- Создаем окно с режимом
+
 	local modeFrame = Instance.new("Frame")
 	modeFrame.Parent = ScreenGui
 	modeFrame.Size = UDim2.new(0, 250, 0, 60)
@@ -657,6 +755,8 @@ local function showPlayerMode(playerObj)
 		modeFrame:Destroy()
 	end
 end
+
+-- ============ ОБНОВЛЕНИЕ МЕНЮ ============
 
 local function updateMenuPopup(playerObj, clickPos)
 	for _, child in pairs(MenuPopupContent:GetChildren()) do
@@ -781,8 +881,38 @@ local function updateMenuPopup(playerObj, clickPos)
 	end
 end
 
--- ФУНКЦИЯ СОЗДАНИЯ ЗАПИСИ ДЛЯ ServerSide (с упрощенным меню)
-local function createServerSideEntry(playerObj, index)
+-- ============ СОЗДАНИЕ ЗАПИСЕЙ ============
+
+-- Запись для ServerSide (только Info и Режим)
+local function createServerSideEntry(playerData, index)
+	-- Ищем игрока в Roblox по ID
+	local playerObj = Players:FindFirstChild(playerData.name)
+	if not playerObj then
+		-- Если игрок не найден, создаем запись без аватара
+		local entry = Instance.new("Frame")
+		entry.Parent = ServerSideFrame
+		entry.Size = UDim2.new(1, 0, 0, 50)
+		entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
+		entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+		entry.BackgroundTransparency = 0.5
+		entry.BorderSizePixel = 1
+		entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
+
+		local nameLabel = Instance.new("TextLabel")
+		nameLabel.Parent = entry
+		nameLabel.Size = UDim2.new(1, 0, 1, 0)
+		nameLabel.Position = UDim2.new(0, 10, 0, 0)
+		nameLabel.BackgroundTransparency = 1
+		nameLabel.Text = playerData.displayName or playerData.name .. " (не в игре)"
+		nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+		nameLabel.TextSize = 13
+		nameLabel.Font = Enum.Font.GothamMedium
+		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+		return entry
+	end
+
+	-- Создаем запись как в Users
 	local entry = Instance.new("Frame")
 	entry.Parent = ServerSideFrame
 	entry.Size = UDim2.new(1, 0, 0, 50)
@@ -840,50 +970,6 @@ local function createServerSideEntry(playerObj, index)
 	usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
 	usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local idLabel = Instance.new("TextLabel")
-	idLabel.Parent = entry
-	idLabel.Size = UDim2.new(0, 100, 0, 14)
-	idLabel.Position = UDim2.new(0, 190, 0, 6)
-	idLabel.BackgroundTransparency = 1
-	idLabel.Text = "ID: "..playerObj.UserId
-	idLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	idLabel.TextSize = 10
-	idLabel.Font = Enum.Font.GothamMedium
-	idLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local ageLabel = Instance.new("TextLabel")
-	ageLabel.Parent = entry
-	ageLabel.Size = UDim2.new(0, 100, 0, 14)
-	ageLabel.Position = UDim2.new(0, 190, 0, 22)
-	ageLabel.BackgroundTransparency = 1
-	ageLabel.Text = "Age: "..(playerObj.AccountAge or "Unknown").."d"
-	ageLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	ageLabel.TextSize = 10
-	ageLabel.Font = Enum.Font.GothamMedium
-	ageLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local timeLabel = Instance.new("TextLabel")
-	timeLabel.Parent = entry
-	timeLabel.Size = UDim2.new(0, 80, 0, 14)
-	timeLabel.Position = UDim2.new(0, 300, 0, 6)
-	timeLabel.BackgroundTransparency = 1
-	timeLabel.Text = "00:00"
-	timeLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-	timeLabel.TextSize = 11
-	timeLabel.Font = Enum.Font.GothamMedium
-	timeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local statusLabel = Instance.new("TextLabel")
-	statusLabel.Parent = entry
-	statusLabel.Size = UDim2.new(0, 20, 0, 20)
-	statusLabel.Position = UDim2.new(0, 385, 0, 15)
-	statusLabel.BackgroundTransparency = 1
-	statusLabel.Text = "●"
-	statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-	statusLabel.TextSize = 16
-	statusLabel.Font = Enum.Font.GothamMedium
-	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
 	-- Клик по аватару в ServerSide - только Info и Режим
 	avatarBtn.MouseButton1Click:Connect(function()
 		local pos = Vector2.new(mouse.X, mouse.Y)
@@ -891,8 +977,7 @@ local function createServerSideEntry(playerObj, index)
 			MenuPopup.Visible = false
 		else
 			selectedPlayer = playerObj
-			
-			-- Показываем упрощенное меню
+
 			for _, child in pairs(MenuPopupContent:GetChildren()) do
 				child:Destroy()
 			end
@@ -915,7 +1000,6 @@ local function createServerSideEntry(playerObj, index)
 			MenuPopup.Visible = true
 			MenuPopupTitleLabel.Text = playerObj.DisplayName or playerObj.Name
 
-			-- Кнопки для ServerSide
 			local actions = {
 				{name = "Info", icon = "ℹ", action = function()
 					showPlayerInfo(playerObj)
@@ -969,28 +1053,10 @@ local function createServerSideEntry(playerObj, index)
 		avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 	end)
 
-	local function updateTime()
-		if not playerJoinTimes[playerObj] then
-			playerJoinTimes[playerObj] = tick()
-		end
-		local elapsed = tick() - playerJoinTimes[playerObj]
-		timeLabel.Text = formatTime(elapsed)
-	end
-
-	updateTime()
-
-	local timeConnection
-	timeConnection = RunService.Heartbeat:Connect(function()
-		if entry.Parent then
-			updateTime()
-		else
-			timeConnection:Disconnect()
-		end
-	end)
-
 	return entry
 end
 
+-- Запись для Users (полное меню)
 local function createUserEntry(playerObj, index)
 	local entry = Instance.new("Frame")
 	entry.Parent = UsersFrame
@@ -1143,6 +1209,8 @@ local function createUserEntry(playerObj, index)
 	return entry
 end
 
+-- ============ ОБНОВЛЕНИЕ СПИСКОВ ============
+
 local function updateUsersList()
 	for _, child in pairs(UsersFrame:GetChildren()) do
 		if child:IsA("Frame") then
@@ -1176,7 +1244,7 @@ local function updateUsersList()
 	end
 end
 
--- ОБНОВЛЕНИЕ СПИСКА SERVER SIDE
+-- Обновление списка ServerSide (игроки с сервера)
 local function updateServerSideList()
 	for _, child in pairs(ServerSideFrame:GetChildren()) do
 		if child:IsA("Frame") then
@@ -1184,26 +1252,31 @@ local function updateServerSideList()
 		end
 	end
 
-	local players = Players:GetPlayers()
-	local onlineCount = #players
+	-- Получаем игроков с сервера
+	local playersData = getServerPlayers()
+	local playerIds = {}
+	for _, data in pairs(playersData) do
+		table.insert(playerIds, data)
+	end
 
-	-- Заголовок
 	local header = Instance.new("TextLabel")
 	header.Parent = ServerSideFrame
 	header.Size = UDim2.new(1, 0, 0, 30)
 	header.BackgroundTransparency = 1
-	header.Text = "👥 Server Side (" .. onlineCount .. ")"
+	header.Text = "🌐 Server Players (" .. #playerIds .. ")"
 	header.TextColor3 = Color3.fromRGB(200, 200, 220)
 	header.TextSize = 16
 	header.Font = Enum.Font.GothamBold
 	header.TextXAlignment = Enum.TextXAlignment.Left
 
-	ServerSideFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(onlineCount * 53 + 50, 400))
+	ServerSideFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(#playerIds * 53 + 50, 400))
 
-	for i, plr in ipairs(players) do
-		createServerSideEntry(plr, i)
+	for i, data in ipairs(playerIds) do
+		createServerSideEntry(data, i)
 	end
 end
+
+-- ============ UI ФУНКЦИИ ============
 
 local function createMapUI()
 	for _, child in pairs(MapFrame:GetChildren()) do
@@ -1342,6 +1415,10 @@ local function createMapUI()
 end
 
 local function createSettingsUI()
+	for _, child in pairs(SettingsFrame:GetChildren()) do
+		child:Destroy()
+	end
+
 	local title = Instance.new("TextLabel")
 	title.Parent = SettingsFrame
 	title.Size = UDim2.new(1, 0, 0, 30)
@@ -1415,6 +1492,10 @@ local function createSettingsUI()
 end
 
 local function createAutoTasksUI()
+	for _, child in pairs(AutoTasksFrame:GetChildren()) do
+		child:Destroy()
+	end
+
 	local title = Instance.new("TextLabel")
 	title.Parent = AutoTasksFrame
 	title.Size = UDim2.new(1, 0, 0, 30)
@@ -1490,6 +1571,10 @@ local function createAutoTasksUI()
 end
 
 local function createBuilderUI()
+	for _, child in pairs(BuilderFrame:GetChildren()) do
+		child:Destroy()
+	end
+
 	local title = Instance.new("TextLabel")
 	title.Parent = BuilderFrame
 	title.Size = UDim2.new(1, 0, 0, 30)
@@ -1527,6 +1612,10 @@ local function createBuilderUI()
 end
 
 local function createAboutUI()
+	for _, child in pairs(AboutFrame:GetChildren()) do
+		child:Destroy()
+	end
+
 	local title = Instance.new("TextLabel")
 	title.Parent = AboutFrame
 	title.Size = UDim2.new(1, 0, 0, 30)
@@ -1542,7 +1631,7 @@ local function createAboutUI()
 	info.Size = UDim2.new(1, 0, 0, 200)
 	info.Position = UDim2.new(0, 0, 0, 40)
 	info.BackgroundTransparency = 1
-	info.Text = "Sheet Rat 2.6.1\n\nVersion: 2.6.1\nStatus: Online\nSelected: 1\nSent: 0 KB\nReceived: 0 MB\n\nPlatform: Roblox 1v1\nDeveloper: Masmuu\nSystem: Roblox Client"
+	info.Text = "Sheet Rat 2.6.1\n\nVersion: 2.6.1\nStatus: Online\n\nPlatform: Roblox\nDeveloper: Masmuu\n\nServer: " .. SERVER_URL
 	info.TextColor3 = Color3.fromRGB(160, 160, 180)
 	info.TextSize = 13
 	info.Font = Enum.Font.GothamMedium
@@ -1550,6 +1639,8 @@ local function createAboutUI()
 	info.TextYAlignment = Enum.TextYAlignment.Top
 	info.LineHeight = 1.5
 end
+
+-- ============ ИНИЦИАЛИЗАЦИЯ ============
 
 createSettingsUI()
 createAutoTasksUI()
@@ -1586,7 +1677,7 @@ for tabName, btn in pairs(TabButtons) do
 		if tabName == "Users" then
 			updateUsersList()
 		end
-		
+
 		if tabName == "ServerSide" then
 			updateServerSideList()
 		end
@@ -1596,6 +1687,8 @@ end
 TabButtons["Users"].BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 TabButtons["Users"].BackgroundTransparency = 0
 TabButtons["Users"].TextColor3 = Color3.fromRGB(220, 220, 240)
+
+-- ============ ОБРАБОТЧИКИ ============
 
 CloseButton.MouseButton1Click:Connect(function()
 	isHidden = true
@@ -1634,7 +1727,6 @@ end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
 	isMinimized = not isMinimized
-	local targetHeight = isMinimized and 65 or 600
 	local targetSize = isMinimized and UDim2.new(0, 900, 0, 65) or UDim2.new(0, 900, 0, 600)
 	local targetPos = isMinimized and UDim2.new(0.5, -450, 0.5, -32.5) or UDim2.new(0.5, -450, 0.5, -300)
 
@@ -1645,13 +1737,14 @@ MinimizeButton.MouseButton1Click:Connect(function()
 	tween:Play()
 end)
 
+-- ============ ИГРОКИ ============
+
 Players.PlayerAdded:Connect(function(newPlayer)
 	task.wait(0.1)
 	if not playerJoinTimes[newPlayer] then
 		playerJoinTimes[newPlayer] = tick()
 	end
 	updateUsersList()
-	updateServerSideList()
 	OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
 	playNotificationSound()
 	showNotification(newPlayer)
@@ -1661,7 +1754,6 @@ Players.PlayerRemoving:Connect(function(removingPlayer)
 	task.wait(0.1)
 	playerJoinTimes[removingPlayer] = nil
 	updateUsersList()
-	updateServerSideList()
 	if selectedPlayer == removingPlayer then
 		selectedPlayer = nil
 		if spectateActive then
@@ -1733,8 +1825,28 @@ UserInputService.InputChanged:Connect(function(input)
 	end
 end)
 
+-- ============ ЗАПУСК ============
+
+task.spawn(function()
+	-- Регистрируем игрока на сервере
+	local registered = registerPlayerOnServer()
+
+	if registered then
+		-- Обновляем список ServerSide
+		updateServerSideList()
+
+		-- Автообновление каждые 10 секунд
+		while true do
+			task.wait(10)
+			if ServerSideFrame.Visible then
+				updateServerSideList()
+			end
+		end
+	end
+end)
+
 updateUsersList()
 updateServerSideList()
 
 print("✅ Sheet Rat 2.6.1 loaded!")
-print("📌 ServerSide tab added!")
+print("📌 ServerSide: показывает игроков, подключенных к серверу " .. SERVER_URL)
