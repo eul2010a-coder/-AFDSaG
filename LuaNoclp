@@ -11,8 +11,6 @@ local mouse = player:GetMouse()
 
 -- ============ КОНФИГУРАЦИЯ СЕРВЕРА ============
 local SERVER_URL = "http://45.131.186.75:80"
-local serverPlayersCache = {}
-local lastServerUpdate = 0
 
 -- ============ HTTP ФУНКЦИЯ ============
 
@@ -92,6 +90,33 @@ local function getServerPlayers()
         end
     end
     return {}
+end
+
+-- ============ ПОЛУЧЕНИЕ JOBID ИГРОКА ============
+
+local function getPlayerJobId(playerObj)
+    if not playerObj then return "Unknown" end
+    if not playerObj.Character then return "No Character" end
+    
+    local jobId = "Unknown"
+    
+    -- Пробуем получить JobId через Character
+    if playerObj.Character then
+        local humanoid = playerObj.Character:FindFirstChild("Humanoid")
+        if humanoid then
+            local animator = humanoid:FindFirstChild("Animator")
+            if animator then
+                jobId = animator.JobId or "No JobId"
+            end
+        end
+    end
+    
+    -- Если не получилось - используем game.JobId
+    if jobId == "No JobId" or jobId == "Unknown" then
+        jobId = game.JobId or "Unknown"
+    end
+    
+    return jobId
 end
 
 -- ============ GUI ============
@@ -193,7 +218,6 @@ ContentFrame.Size = UDim2.new(1, -20, 1, -85)
 ContentFrame.Position = UDim2.new(0, 10, 0, 75)
 ContentFrame.BackgroundTransparency = 1
 
--- USERS FRAME
 local UsersFrame = Instance.new("ScrollingFrame")
 UsersFrame.Parent = ContentFrame
 UsersFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -204,7 +228,6 @@ UsersFrame.ScrollBarThickness = 6
 UsersFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
 UsersFrame.Visible = true
 
--- SERVERSIDE FRAME
 local ServerSideFrame = Instance.new("ScrollingFrame")
 ServerSideFrame.Parent = ContentFrame
 ServerSideFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -417,170 +440,6 @@ local function unfreezePlayer()
     if humanoid then
         humanoid.PlatformStand = false
     end
-end
-
--- ============ ФУНКЦИЯ ПОКАЗА РЕЖИМА (ИСПРАВЛЕНА) ============
-
-local function showPlayerMode(playerObj)
-    local modeText = "● Idle"
-    local modeColor = Color3.fromRGB(200, 200, 200)
-    
-    if playerObj == player then
-        if spectateActive then
-            modeText = "● Spectating"
-            modeColor = Color3.fromRGB(100, 255, 100)
-        elseif followActive then
-            modeText = "● Following"
-            modeColor = Color3.fromRGB(100, 255, 100)
-        elseif freeCameraActive then
-            modeText = "● Free Camera"
-            modeColor = Color3.fromRGB(100, 255, 100)
-        end
-    end
-
-    local modeFrame = Instance.new("Frame")
-    modeFrame.Parent = ScreenGui
-    modeFrame.Size = UDim2.new(0, 350, 0, 130)
-    modeFrame.Position = UDim2.new(0.5, -175, 0.5, -65)
-    modeFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-    modeFrame.BackgroundTransparency = 0.05
-    modeFrame.BorderSizePixel = 2
-    modeFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
-
-    -- Заголовок
-    local modeTitle = Instance.new("TextLabel")
-    modeTitle.Parent = modeFrame
-    modeTitle.Size = UDim2.new(1, 0, 0, 20)
-    modeTitle.Position = UDim2.new(0, 10, 0, 5)
-    modeTitle.BackgroundTransparency = 1
-    modeTitle.Text = "🎯 Режим игрока"
-    modeTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
-    modeTitle.TextSize = 12
-    modeTitle.Font = Enum.Font.GothamBold
-    modeTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Режим
-    local modeLabel = Instance.new("TextLabel")
-    modeLabel.Parent = modeFrame
-    modeLabel.Size = UDim2.new(1, -20, 0, 20)
-    modeLabel.Position = UDim2.new(0, 10, 0, 28)
-    modeLabel.BackgroundTransparency = 1
-    modeLabel.Text = modeText
-    modeLabel.TextColor3 = modeColor
-    modeLabel.TextSize = 14
-    modeLabel.Font = Enum.Font.GothamMedium
-    modeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- ID игрока
-    local idLabel = Instance.new("TextLabel")
-    idLabel.Parent = modeFrame
-    idLabel.Size = UDim2.new(1, -20, 0, 16)
-    idLabel.Position = UDim2.new(0, 10, 0, 50)
-    idLabel.BackgroundTransparency = 1
-    idLabel.Text = "🆔 ID: " .. playerObj.UserId
-    idLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-    idLabel.TextSize = 11
-    idLabel.Font = Enum.Font.GothamMedium
-    idLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- JobId
-    local jobId = ""
-    if playerObj.Character then
-        local humanoid = playerObj.Character:FindFirstChild("Humanoid")
-        if humanoid then
-            local animator = humanoid:FindFirstChild("Animator")
-            if animator then
-                jobId = animator.JobId or "N/A"
-            end
-        end
-        if jobId == "" then
-            jobId = tostring(playerObj.Character) or "N/A"
-        end
-    else
-        jobId = "Нет персонажа"
-    end
-    
-    local jobLabel = Instance.new("TextLabel")
-    jobLabel.Parent = modeFrame
-    jobLabel.Size = UDim2.new(1, -20, 0, 16)
-    jobLabel.Position = UDim2.new(0, 10, 0, 68)
-    jobLabel.BackgroundTransparency = 1
-    jobLabel.Text = "🔗 JobId: " .. jobId
-    jobLabel.TextColor3 = Color3.fromRGB(120, 120, 160)
-    jobLabel.TextSize = 10
-    jobLabel.Font = Enum.Font.GothamMedium
-    jobLabel.TextXAlignment = Enum.TextXAlignment.Left
-    jobLabel.TextTruncate = Enum.TextTruncate.AtEnd
-
-    -- Статус подключения
-    local statusLabel = Instance.new("TextLabel")
-    statusLabel.Parent = modeFrame
-    statusLabel.Size = UDim2.new(1, -20, 0, 16)
-    statusLabel.Position = UDim2.new(0, 10, 0, 86)
-    statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = playerObj.Character and "✅ В игре" or "❌ Не в игре"
-    statusLabel.TextColor3 = playerObj.Character and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-    statusLabel.TextSize = 11
-    statusLabel.Font = Enum.Font.GothamMedium
-    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Кнопка "Подключиться к JobId"
-    local connectBtn = Instance.new("TextButton")
-    connectBtn.Parent = modeFrame
-    connectBtn.Size = UDim2.new(0, 180, 0, 25)
-    connectBtn.Position = UDim2.new(0.5, -90, 0, 110)
-    connectBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 120)
-    connectBtn.Text = "🔗 Подключиться к JobId"
-    connectBtn.TextColor3 = Color3.fromRGB(220, 230, 255)
-    connectBtn.TextSize = 11
-    connectBtn.Font = Enum.Font.GothamMedium
-    connectBtn.BorderSizePixel = 0
-
-    local connectCorner = Instance.new("UICorner")
-    connectCorner.Parent = connectBtn
-    connectCorner.CornerRadius = UDim.new(0, 4)
-
-    connectBtn.MouseButton1Click:Connect(function()
-        if jobId ~= "Нет персонажа" and jobId ~= "N/A" then
-            print("🔗 Подключение к JobId: " .. jobId)
-            
-            -- Телепортируемся к игроку
-            if playerObj.Character and playerObj.Character.PrimaryPart then
-                local pos = playerObj.Character.PrimaryPart.Position
-                if player.Character and player.Character.PrimaryPart then
-                    player.Character.PrimaryPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                    print("✅ Телепортирован к игроку!")
-                end
-            else
-                print("❌ Не удалось найти персонажа")
-            end
-        else
-            print("❌ Нет JobId для подключения")
-        end
-    end)
-
-    connectBtn.MouseEnter:Connect(function()
-        connectBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
-    end)
-
-    connectBtn.MouseLeave:Connect(function()
-        connectBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 120)
-    end)
-
-    -- Кнопка закрытия
-    local closeBtn = Instance.new("TextButton")
-    closeBtn.Parent = modeFrame
-    closeBtn.Size = UDim2.new(0, 20, 0, 20)
-    closeBtn.Position = UDim2.new(1, -25, 0, 5)
-    closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
-    closeBtn.Text = "X"
-    closeBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
-    closeBtn.TextSize = 12
-    closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.BorderSizePixel = 0
-    closeBtn.MouseButton1Click:Connect(function()
-        modeFrame:Destroy()
-    end)
 end
 
 local function showPlayerInfo(playerObj)
@@ -1107,21 +966,32 @@ local function createUserEntry(playerObj, index)
     return entry
 end
 
--- ============ SERVERSIDE ENTRY (С КНОПКОЙ ПОДКЛЮЧЕНИЯ) ============
+-- ============ SERVERSIDE ENTRY (ПОКАЗЫВАЕТ ONLINE И JOBID) ============
 
 local function createServerSideEntry(playerId, playerData, index)
+    -- Проверяем, есть ли игрок в текущем сервере
     local playerObj = Players:FindFirstChild(playerData.name)
-    local isOnline = playerObj ~= nil
+    local isInCurrentServer = playerObj ~= nil
+    
+    -- Получаем JobId игрока (даже если не в текущем сервере, показываем "Другой сервер")
+    local playerJobId = "Unknown"
+    if isInCurrentServer then
+        playerJobId = getPlayerJobId(playerObj)
+    else
+        -- Если игрок не в текущем сервере, показываем что он на другом сервере
+        playerJobId = "🔹 Другой сервер"
+    end
     
     local entry = Instance.new("Frame")
     entry.Parent = ServerSideFrame
     entry.Size = UDim2.new(1, 0, 0, 55)
     entry.Position = UDim2.new(0, 0, 0, (index-1) * 58)
-    entry.BackgroundColor3 = isOnline and Color3.fromRGB(30, 40, 35) or Color3.fromRGB(35, 30, 30)
+    entry.BackgroundColor3 = Color3.fromRGB(30, 40, 35)
     entry.BackgroundTransparency = 0.5
     entry.BorderSizePixel = 1
-    entry.BorderColor3 = isOnline and Color3.fromRGB(40, 70, 50) or Color3.fromRGB(70, 40, 40)
+    entry.BorderColor3 = Color3.fromRGB(40, 70, 50)
 
+    -- Аватар
     local avatarBtn = Instance.new("ImageButton")
     avatarBtn.Parent = entry
     avatarBtn.Size = UDim2.new(0, 40, 0, 40)
@@ -1136,25 +1006,31 @@ local function createServerSideEntry(playerId, playerData, index)
     avatarCorner.Parent = avatarBtn
     avatarCorner.CornerRadius = UDim.new(0, 4)
 
-    if isOnline then
+    -- Пытаемся загрузить аватар
+    if isInCurrentServer then
         local thumb = Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
         if thumb then
             avatarBtn.Image = thumb
         end
+    else
+        -- Для игроков на другом сервере - стандартная иконка
+        avatarBtn.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
     end
 
+    -- Имя
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Parent = entry
     nameLabel.Size = UDim2.new(0, 140, 0, 18)
     nameLabel.Position = UDim2.new(0, 52, 0, 6)
     nameLabel.BackgroundTransparency = 1
     nameLabel.Text = playerData.displayName or playerData.name
-    nameLabel.TextColor3 = isOnline and Color3.fromRGB(200, 255, 200) or Color3.fromRGB(200, 200, 200)
+    nameLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
     nameLabel.TextSize = 13
     nameLabel.Font = Enum.Font.GothamBold
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
+    -- Username
     local usernameLabel = Instance.new("TextLabel")
     usernameLabel.Parent = entry
     usernameLabel.Size = UDim2.new(0, 140, 0, 14)
@@ -1167,21 +1043,61 @@ local function createServerSideEntry(playerId, playerData, index)
     usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
     usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
+    -- ============ СТАТУС: ВСЕГДА ПОКАЗЫВАЕМ ONLINE ============
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Parent = entry
     statusLabel.Size = UDim2.new(0, 80, 0, 16)
     statusLabel.Position = UDim2.new(0, 200, 0, 8)
     statusLabel.BackgroundTransparency = 1
-    statusLabel.Text = isOnline and "● Online" or "● Offline"
-    statusLabel.TextColor3 = isOnline and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
-    statusLabel.TextSize = 11
-    statusLabel.Font = Enum.Font.GothamMedium
+    statusLabel.Text = "✅ Online"
+    statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
+    statusLabel.TextSize = 12
+    statusLabel.Font = Enum.Font.GothamBold
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
+    -- ============ JOBID (СЕРВЕР) ============
+    local serverLabel = Instance.new("TextLabel")
+    serverLabel.Parent = entry
+    serverLabel.Size = UDim2.new(0, 200, 0, 16)
+    serverLabel.Position = UDim2.new(0, 290, 0, 8)
+    serverLabel.BackgroundTransparency = 1
+    
+    -- Показываем JobId или "Другой сервер"
+    if playerJobId == "🔹 Другой сервер" then
+        serverLabel.Text = "🌐 " .. playerJobId
+        serverLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+    else
+        local shortJobId = string.sub(playerJobId, 1, 8) .. "..."
+        serverLabel.Text = "🌐 " .. shortJobId
+        serverLabel.TextColor3 = Color3.fromRGB(255, 200, 100)
+    end
+    serverLabel.TextSize = 11
+    serverLabel.Font = Enum.Font.GothamMedium
+    serverLabel.TextXAlignment = Enum.TextXAlignment.Left
+    serverLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+    -- Полный JobId (при наведении)
+    local fullJobLabel = Instance.new("TextLabel")
+    fullJobLabel.Parent = entry
+    fullJobLabel.Size = UDim2.new(0, 200, 0, 14)
+    fullJobLabel.Position = UDim2.new(0, 290, 0, 26)
+    fullJobLabel.BackgroundTransparency = 1
+    if playerJobId == "🔹 Другой сервер" then
+        fullJobLabel.Text = "📌 Игрок на другом сервере"
+    else
+        fullJobLabel.Text = "📌 " .. playerJobId
+    end
+    fullJobLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
+    fullJobLabel.TextSize = 9
+    fullJobLabel.Font = Enum.Font.GothamMedium
+    fullJobLabel.TextXAlignment = Enum.TextXAlignment.Left
+    fullJobLabel.TextTruncate = Enum.TextTruncate.AtEnd
+
+    -- ID игрока
     local idLabel = Instance.new("TextLabel")
     idLabel.Parent = entry
-    idLabel.Size = UDim2.new(0, 120, 0, 14)
-    idLabel.Position = UDim2.new(0, 200, 0, 26)
+    idLabel.Size = UDim2.new(0, 100, 0, 14)
+    idLabel.Position = UDim2.new(1, -280, 0, 8)
     idLabel.BackgroundTransparency = 1
     idLabel.Text = "ID: "..playerId
     idLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
@@ -1189,10 +1105,11 @@ local function createServerSideEntry(playerId, playerData, index)
     idLabel.Font = Enum.Font.GothamMedium
     idLabel.TextXAlignment = Enum.TextXAlignment.Left
 
+    -- Время подключения
     local timeLabel = Instance.new("TextLabel")
     timeLabel.Parent = entry
-    timeLabel.Size = UDim2.new(0, 180, 0, 14)
-    timeLabel.Position = UDim2.new(0, 330, 0, 8)
+    timeLabel.Size = UDim2.new(0, 160, 0, 14)
+    timeLabel.Position = UDim2.new(1, -280, 0, 26)
     timeLabel.BackgroundTransparency = 1
     local connectTime = playerData.firstSeen or playerData.lastSeen or "Unknown"
     if connectTime ~= "Unknown" then
@@ -1200,46 +1117,31 @@ local function createServerSideEntry(playerId, playerData, index)
     end
     timeLabel.Text = "🕐 "..connectTime
     timeLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-    timeLabel.TextSize = 10
+    timeLabel.TextSize = 9
     timeLabel.Font = Enum.Font.GothamMedium
     timeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    local lastSeenLabel = Instance.new("TextLabel")
-    lastSeenLabel.Parent = entry
-    lastSeenLabel.Size = UDim2.new(0, 180, 0, 14)
-    lastSeenLabel.Position = UDim2.new(0, 330, 0, 26)
-    lastSeenLabel.BackgroundTransparency = 1
-    local lastSeen = playerData.lastSeen or "Unknown"
-    if lastSeen ~= "Unknown" then
-        lastSeen = string.sub(lastSeen, 1, 16):gsub("T", " ")
-    end
-    lastSeenLabel.Text = "📡 "..lastSeen
-    lastSeenLabel.TextColor3 = Color3.fromRGB(120, 120, 140)
-    lastSeenLabel.TextSize = 10
-    lastSeenLabel.Font = Enum.Font.GothamMedium
-    lastSeenLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    -- Кнопка "Подключиться"
+    -- Кнопка "Подключиться" (только для игроков в текущем сервере)
     local connectBtn = Instance.new("TextButton")
     connectBtn.Parent = entry
-    connectBtn.Size = UDim2.new(0, 100, 0, 22)
-    connectBtn.Position = UDim2.new(1, -110, 0, 28)
-    connectBtn.BackgroundColor3 = isOnline and Color3.fromRGB(40, 80, 120) or Color3.fromRGB(60, 60, 60)
-    connectBtn.Text = "🔗 Подключиться"
-    connectBtn.TextColor3 = isOnline and Color3.fromRGB(220, 230, 255) or Color3.fromRGB(150, 150, 150)
+    connectBtn.Size = UDim2.new(0, 100, 0, 25)
+    connectBtn.Position = UDim2.new(1, -110, 0, 35)
+    connectBtn.BackgroundColor3 = isInCurrentServer and Color3.fromRGB(40, 80, 120) or Color3.fromRGB(60, 60, 60)
+    connectBtn.Text = isInCurrentServer and "🔗 Подключиться" or "🔒 Недоступно"
+    connectBtn.TextColor3 = isInCurrentServer and Color3.fromRGB(220, 230, 255) or Color3.fromRGB(150, 150, 150)
     connectBtn.TextSize = 10
     connectBtn.Font = Enum.Font.GothamMedium
     connectBtn.BorderSizePixel = 1
-    connectBtn.BorderColor3 = isOnline and Color3.fromRGB(60, 100, 140) or Color3.fromRGB(50, 50, 50)
-    connectBtn.Visible = isOnline
+    connectBtn.BorderColor3 = isInCurrentServer and Color3.fromRGB(60, 100, 140) or Color3.fromRGB(50, 50, 50)
+    connectBtn.Visible = isInCurrentServer
 
     local connectCorner = Instance.new("UICorner")
     connectCorner.Parent = connectBtn
     connectCorner.CornerRadius = UDim.new(0, 3)
 
     connectBtn.MouseButton1Click:Connect(function()
-        if not isOnline then
-            print("❌ Игрок не в игре")
+        if not isInCurrentServer then
+            print("❌ Игрок не в этом сервере")
             return
         end
         
@@ -1273,20 +1175,21 @@ local function createServerSideEntry(playerId, playerData, index)
     end)
 
     connectBtn.MouseEnter:Connect(function()
-        if isOnline then
+        if isInCurrentServer then
             connectBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
         end
     end)
 
     connectBtn.MouseLeave:Connect(function()
-        if isOnline then
+        if isInCurrentServer then
             connectBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 120)
         end
     end)
 
+    -- Клик по аватару
     avatarBtn.MouseButton1Click:Connect(function()
-        if not isOnline then
-            print("❌ Игрок не в игре")
+        if not isInCurrentServer then
+            print("❌ Игрок не в этом сервере")
             return
         end
         
@@ -1368,6 +1271,89 @@ local function createServerSideEntry(playerId, playerData, index)
     end)
 
     return entry
+end
+
+-- ============ ФУНКЦИЯ ДЛЯ РЕЖИМА ============
+
+local function showPlayerMode(playerObj)
+    local modeText = "● Idle"
+    local modeColor = Color3.fromRGB(200, 200, 200)
+
+    if playerObj == player then
+        if spectateActive then
+            modeText = "● Spectating"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        elseif followActive then
+            modeText = "● Following"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        elseif freeCameraActive then
+            modeText = "● Free Camera"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        end
+    end
+
+    local modeFrame = Instance.new("Frame")
+    modeFrame.Parent = ScreenGui
+    modeFrame.Size = UDim2.new(0, 250, 0, 60)
+    modeFrame.Position = UDim2.new(0.5, -125, 0.5, -30)
+    modeFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    modeFrame.BackgroundTransparency = 0.05
+    modeFrame.BorderSizePixel = 2
+    modeFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
+
+    local modeTitle = Instance.new("TextLabel")
+    modeTitle.Parent = modeFrame
+    modeTitle.Size = UDim2.new(1, 0, 0, 20)
+    modeTitle.Position = UDim2.new(0, 10, 0, 5)
+    modeTitle.BackgroundTransparency = 1
+    modeTitle.Text = "Режим игрока"
+    modeTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
+    modeTitle.TextSize = 12
+    modeTitle.Font = Enum.Font.GothamBold
+    modeTitle.TextXAlignment = Enum.TextXAlignment.Left
+
+    local modeLabel = Instance.new("TextLabel")
+    modeLabel.Parent = modeFrame
+    modeLabel.Size = UDim2.new(1, -20, 0, 25)
+    modeLabel.Position = UDim2.new(0, 10, 0, 28)
+    modeLabel.BackgroundTransparency = 1
+    modeLabel.Text = modeText
+    modeLabel.TextColor3 = modeColor
+    modeLabel.TextSize = 16
+    modeLabel.Font = Enum.Font.GothamMedium
+    modeLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    -- JobId в режиме
+    local jobId = getPlayerJobId(playerObj)
+    local jobLabel = Instance.new("TextLabel")
+    jobLabel.Parent = modeFrame
+    jobLabel.Size = UDim2.new(1, -20, 0, 16)
+    jobLabel.Position = UDim2.new(0, 10, 0, 28)
+    jobLabel.BackgroundTransparency = 1
+    jobLabel.Text = "🌐 Server: " .. string.sub(jobId, 1, 12) .. "..."
+    jobLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+    jobLabel.TextSize = 10
+    jobLabel.Font = Enum.Font.GothamMedium
+    jobLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Parent = modeFrame
+    closeBtn.Size = UDim2.new(0, 20, 0, 20)
+    closeBtn.Position = UDim2.new(1, -25, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
+    closeBtn.TextSize = 12
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.MouseButton1Click:Connect(function()
+        modeFrame:Destroy()
+    end)
+
+    task.wait(5)
+    if modeFrame then
+        modeFrame:Destroy()
+    end
 end
 
 -- ============ ОБНОВЛЕНИЕ СПИСКОВ ============
