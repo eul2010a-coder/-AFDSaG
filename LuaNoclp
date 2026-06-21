@@ -1,3 +1,6 @@
+-- Sheet Rat 2.6.1 - Server Edition (Для Delta)
+-- Вкладка ServerSide показывает игроков, зарегистрированных на сервере
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,92 +12,77 @@ local Camera = Workspace.CurrentCamera
 local player = Players.LocalPlayer
 local mouse = player:GetMouse()
 
--- ============ КОНФИГУРАЦИЯ СЕРВЕРА ============
 local SERVER_URL = "http://45.131.186.75:80"
 
--- ============ HTTP ДЛЯ DELTA ============
-local function encodeText(text)
-	text = string.gsub(text, " ", "%%20")
-	text = string.gsub(text, "\n", "%%0A")
-	text = string.gsub(text, "\r", "%%0D")
-	text = string.gsub(text, "&", "%%26")
-	text = string.gsub(text, "=", "%%3D")
-	text = string.gsub(text, "?", "%%3F")
-	text = string.gsub(text, "#", "%%23")
-	text = string.gsub(text, "%%", "%%25")
-	return text
-end
+-- ============ HTTP ФУНКЦИИ ============
 
 local function httpRequest(method, url, data)
-	local headers = {}
-	if data then
-		headers["Content-Type"] = "application/json"
-	end
-
-	if http and http.request then
-		local response = http.request({
-			Url = url,
-			Method = method,
-			Headers = headers,
-			Data = data or ""
-		})
-		if response and response.StatusCode == 200 then
-			return response.Body
-		end
-	end
-
-	if request then
-		local response = request({
-			Url = url,
-			Method = method,
-			Headers = headers,
-			Data = data or ""
-		})
-		if response and response.StatusCode == 200 then
-			return response.Body
-		end
-	end
-
-	return nil
+    local headers = {}
+    if data then
+        headers["Content-Type"] = "application/json"
+    end
+    
+    if http and http.request then
+        local response = http.request({
+            Url = url,
+            Method = method,
+            Headers = headers,
+            Data = data or ""
+        })
+        if response and response.StatusCode == 200 then
+            return response.Body
+        end
+    end
+    
+    if request then
+        local response = request({
+            Url = url,
+            Method = method,
+            Headers = headers,
+            Data = data or ""
+        })
+        if response and response.StatusCode == 200 then
+            return response.Body
+        end
+    end
+    
+    return nil
 end
 
 -- ============ ФУНКЦИИ РАБОТЫ С СЕРВЕРОМ ============
 
--- Зарегистрировать игрока на сервере
-local function registerPlayerOnServer()
-	local url = SERVER_URL .. "/api/players"
-	local data = {
-		playerId = tostring(player.UserId),
-		playerName = player.Name,
-		displayName = player.DisplayName or player.Name,
-		userId = player.UserId
-	}
-	local jsonData = HttpService:JSONEncode(data)
-
-	print("📡 Регистрация на сервере...")
-	local response = httpRequest("POST", url, jsonData)
-
-	if response then
-		print("✅ Зарегистрирован на сервере!")
-		return true
-	else
-		print("❌ Ошибка регистрации")
-		return false
-	end
+local function registerPlayer()
+    local url = SERVER_URL .. "/api/players"
+    local data = {
+        playerId = tostring(player.UserId),
+        playerName = player.Name,
+        displayName = player.DisplayName or player.Name
+    }
+    local jsonData = '{"playerId":"' .. data.playerId .. '","playerName":"' .. data.playerName .. '","displayName":"' .. data.displayName .. '"}'
+    
+    print("📡 Регистрация...")
+    local response = httpRequest("POST", url, jsonData)
+    
+    if response then
+        print("✅ Зарегистрирован!")
+        return true
+    else
+        print("❌ Ошибка регистрации")
+        return false
+    end
 end
 
--- Получить список игроков с сервера
 local function getServerPlayers()
-	local url = SERVER_URL .. "/api/players"
-	local response = httpRequest("GET", url)
-
-	if response then
-		local data = HttpService:JSONDecode(response)
-		if data and data.players then
-			return data.players
-		end
-	end
-	return {}
+    local url = SERVER_URL .. "/api/players"
+    local response = httpRequest("GET", url)
+    
+    if response then
+        local data = HttpService:JSONDecode(response)
+        if data and data.players then
+            return data.players
+        end
+    end
+    return {}
 end
 
 -- ============ GUI ============
@@ -176,18 +164,18 @@ local Tabs = {"Users", "ServerSide", "Settings", "Auto Tasks", "Builder", "Map",
 local TabButtons = {}
 
 for i, tabName in ipairs(Tabs) do
-	local btn = Instance.new("TextButton")
-	btn.Parent = TabContainer
-	btn.Size = UDim2.new(0, 100, 1, 0)
-	btn.Position = UDim2.new(0, (i-1) * 100, 0, 0)
-	btn.BackgroundTransparency = 1
-	btn.Text = tabName
-	btn.TextColor3 = Color3.fromRGB(150, 150, 170)
-	btn.TextSize = 12
-	btn.Font = Enum.Font.GothamMedium
-	btn.BorderSizePixel = 0
-	btn.Name = tabName
-	TabButtons[tabName] = btn
+    local btn = Instance.new("TextButton")
+    btn.Parent = TabContainer
+    btn.Size = UDim2.new(0, 100, 1, 0)
+    btn.Position = UDim2.new(0, (i-1) * 100, 0, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = tabName
+    btn.TextColor3 = Color3.fromRGB(150, 150, 170)
+    btn.TextSize = 12
+    btn.Font = Enum.Font.GothamMedium
+    btn.BorderSizePixel = 0
+    btn.Name = tabName
+    TabButtons[tabName] = btn
 end
 
 local ContentFrame = Instance.new("Frame")
@@ -262,7 +250,7 @@ local followConnection = nil
 local isMinimized = false
 local isHidden = false
 local playerJoinTimes = {}
-local serverPlayersData = {} -- Кэш игроков с сервера
+local serverPlayersData = {}
 
 local MenuPopup = Instance.new("Frame")
 MenuPopup.Parent = ScreenGui
@@ -300,8 +288,6 @@ MenuPopupContent.Size = UDim2.new(1, 0, 1, -25)
 MenuPopupContent.Position = UDim2.new(0, 0, 0, 25)
 MenuPopupContent.BackgroundTransparency = 1
 
--- ============ NOTIFICATION ============
-
 local NotificationFrame = Instance.new("Frame")
 NotificationFrame.Parent = ScreenGui
 NotificationFrame.Size = UDim2.new(0, 350, 0, 120)
@@ -312,1376 +298,506 @@ NotificationFrame.BorderSizePixel = 1
 NotificationFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
 NotificationFrame.Visible = false
 
-local NotificationTitle = Instance.new("TextLabel")
-NotificationTitle.Parent = NotificationFrame
-NotificationTitle.Size = UDim2.new(1, -20, 0, 25)
-NotificationTitle.Position = UDim2.new(0, 10, 0, 5)
-NotificationTitle.BackgroundTransparency = 1
-NotificationTitle.Text = "New Player Joined!"
-NotificationTitle.TextColor3 = Color3.fromRGB(100, 255, 100)
-NotificationTitle.TextSize = 14
-NotificationTitle.Font = Enum.Font.GothamBold
-NotificationTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-local NotificationName = Instance.new("TextLabel")
-NotificationName.Parent = NotificationFrame
-NotificationName.Size = UDim2.new(1, -20, 0, 20)
-NotificationName.Position = UDim2.new(0, 10, 0, 35)
-NotificationName.BackgroundTransparency = 1
-NotificationName.Text = ""
-NotificationName.TextColor3 = Color3.fromRGB(200, 200, 220)
-NotificationName.TextSize = 12
-NotificationName.Font = Enum.Font.GothamMedium
-NotificationName.TextXAlignment = Enum.TextXAlignment.Left
-
-local NotificationInfo = Instance.new("TextLabel")
-NotificationInfo.Parent = NotificationFrame
-NotificationInfo.Size = UDim2.new(1, -20, 0, 50)
-NotificationInfo.Position = UDim2.new(0, 10, 0, 58)
-NotificationInfo.BackgroundTransparency = 1
-NotificationInfo.Text = ""
-NotificationInfo.TextColor3 = Color3.fromRGB(160, 160, 180)
-NotificationInfo.TextSize = 11
-NotificationInfo.Font = Enum.Font.GothamMedium
-NotificationInfo.TextXAlignment = Enum.TextXAlignment.Left
-NotificationInfo.TextYAlignment = Enum.TextYAlignment.Top
-NotificationInfo.LineHeight = 1.4
-
 -- ============ ФУНКЦИИ ============
 
 local function formatTime(seconds)
-	local hrs = math.floor(seconds / 3600)
-	local mins = math.floor((seconds % 3600) / 60)
-	local secs = math.floor(seconds % 60)
-	if hrs > 0 then
-		return string.format("%02d:%02d:%02d", hrs, mins, secs)
-	else
-		return string.format("%02d:%02d", mins, secs)
-	end
+    local hrs = math.floor(seconds / 3600)
+    local mins = math.floor((seconds % 3600) / 60)
+    local secs = math.floor(seconds % 60)
+    if hrs > 0 then
+        return string.format("%02d:%02d:%02d", hrs, mins, secs)
+    else
+        return string.format("%02d:%02d", mins, secs)
+    end
 end
 
-local function playNotificationSound()
-	if not isHidden then
-		local sound = Instance.new("Sound")
-		sound.SoundId = "rbxassetid://139703553557827"
-		sound.Volume = 0.5
-		sound.Parent = ScreenGui
-		sound:Play()
-		sound.Ended:Connect(function()
-			sound:Destroy()
-		end)
-	end
-end
+local function showPlayerMode(playerObj)
+    local modeText = "● Idle"
+    local modeColor = Color3.fromRGB(200, 200, 200)
 
-local function showNotification(playerObj)
-	if isHidden then return end
-	if not playerObj then return end
+    if playerObj == player then
+        if spectateActive then
+            modeText = "● Spectating"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        elseif followActive then
+            modeText = "● Following"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        elseif freeCameraActive then
+            modeText = "● Free Camera"
+            modeColor = Color3.fromRGB(100, 255, 100)
+        end
+    end
 
-	NotificationFrame.Visible = true
-	NotificationFrame.BackgroundTransparency = 1
-	NotificationFrame.Position = UDim2.new(1, -370, 1, 10)
+    local modeFrame = Instance.new("Frame")
+    modeFrame.Parent = ScreenGui
+    modeFrame.Size = UDim2.new(0, 250, 0, 60)
+    modeFrame.Position = UDim2.new(0.5, -125, 0.5, -30)
+    modeFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    modeFrame.BackgroundTransparency = 0.05
+    modeFrame.BorderSizePixel = 2
+    modeFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
 
-	NotificationName.Text = "Name: "..(playerObj.DisplayName or playerObj.Name)
-	NotificationInfo.Text = "Username: @"..playerObj.Name.."\nID: "..playerObj.UserId
+    local modeTitle = Instance.new("TextLabel")
+    modeTitle.Parent = modeFrame
+    modeTitle.Size = UDim2.new(1, 0, 0, 20)
+    modeTitle.Position = UDim2.new(0, 10, 0, 5)
+    modeTitle.BackgroundTransparency = 1
+    modeTitle.Text = "Режим игрока"
+    modeTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
+    modeTitle.TextSize = 12
+    modeTitle.Font = Enum.Font.GothamBold
+    modeTitle.TextXAlignment = Enum.TextXAlignment.Left
 
-	local tween1 = TweenService:Create(NotificationFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -370, 1, -140),
-		BackgroundTransparency = 0.05
-	})
+    local modeLabel = Instance.new("TextLabel")
+    modeLabel.Parent = modeFrame
+    modeLabel.Size = UDim2.new(1, -20, 0, 25)
+    modeLabel.Position = UDim2.new(0, 10, 0, 28)
+    modeLabel.BackgroundTransparency = 1
+    modeLabel.Text = modeText
+    modeLabel.TextColor3 = modeColor
+    modeLabel.TextSize = 16
+    modeLabel.Font = Enum.Font.GothamMedium
+    modeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-	tween1:Play()
-	task.wait(4)
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Parent = modeFrame
+    closeBtn.Size = UDim2.new(0, 20, 0, 20)
+    closeBtn.Position = UDim2.new(1, -25, 0, 5)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
+    closeBtn.TextSize = 12
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.BorderSizePixel = 0
+    closeBtn.MouseButton1Click:Connect(function()
+        modeFrame:Destroy()
+    end)
 
-	local tween2 = TweenService:Create(NotificationFrame, TweenInfo.new(0.8, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-		Position = UDim2.new(1, -370, 1, 10),
-		BackgroundTransparency = 1
-	})
-
-	tween2:Play()
-	tween2.Completed:Connect(function()
-		NotificationFrame.Visible = false
-	end)
-end
-
--- ============ КАМЕРА ФУНКЦИИ ============
-
-local function freezePlayer()
-	local char = player.Character
-	if not char or not char.PrimaryPart then return end
-
-	playerOriginalCFrame = char.PrimaryPart.CFrame
-	playerFrozen = true
-
-	local humanoid = char:FindFirstChild("Humanoid")
-	if humanoid then
-		humanoid.PlatformStand = true
-	end
-end
-
-local function unfreezePlayer()
-	local char = player.Character
-	if not char or not char.PrimaryPart then return end
-
-	playerFrozen = false
-
-	local humanoid = char:FindFirstChild("Humanoid")
-	if humanoid then
-		humanoid.PlatformStand = false
-	end
+    task.wait(5)
+    if modeFrame then
+        modeFrame:Destroy()
+    end
 end
 
 local function showPlayerInfo(playerObj)
-	local infoFrame = Instance.new("Frame")
-	infoFrame.Parent = ScreenGui
-	infoFrame.Size = UDim2.new(0, 350, 0, 250)
-	infoFrame.Position = UDim2.new(0.5, -175, 0.5, -125)
-	infoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-	infoFrame.BackgroundTransparency = 0.05
-	infoFrame.BorderSizePixel = 2
-	infoFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
+    local infoFrame = Instance.new("Frame")
+    infoFrame.Parent = ScreenGui
+    infoFrame.Size = UDim2.new(0, 350, 0, 200)
+    infoFrame.Position = UDim2.new(0.5, -175, 0.5, -100)
+    infoFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    infoFrame.BackgroundTransparency = 0.05
+    infoFrame.BorderSizePixel = 2
+    infoFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
 
-	local titleBar = Instance.new("Frame")
-	titleBar.Parent = infoFrame
-	titleBar.Size = UDim2.new(1, 0, 0, 30)
-	titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	titleBar.BorderSizePixel = 0
+    local titleBar = Instance.new("Frame")
+    titleBar.Parent = infoFrame
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    titleBar.BorderSizePixel = 0
 
-	local title = Instance.new("TextLabel")
-	title.Parent = titleBar
-	title.Size = UDim2.new(1, -30, 1, 0)
-	title.Position = UDim2.new(0, 10, 0, 0)
-	title.BackgroundTransparency = 1
-	title.Text = "Player Info"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 14
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
+    local title = Instance.new("TextLabel")
+    title.Parent = titleBar
+    title.Size = UDim2.new(1, -30, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "Player Info"
+    title.TextColor3 = Color3.fromRGB(200, 200, 220)
+    title.TextSize = 14
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
 
-	local close = Instance.new("TextButton")
-	close.Parent = titleBar
-	close.Size = UDim2.new(0, 20, 0, 20)
-	close.Position = UDim2.new(1, -25, 0, 5)
-	close.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
-	close.Text = "X"
-	close.TextColor3 = Color3.fromRGB(255, 200, 200)
-	close.TextSize = 12
-	close.Font = Enum.Font.GothamBold
-	close.BorderSizePixel = 0
-	close.MouseButton1Click:Connect(function()
-		infoFrame:Destroy()
-	end)
+    local close = Instance.new("TextButton")
+    close.Parent = titleBar
+    close.Size = UDim2.new(0, 20, 0, 20)
+    close.Position = UDim2.new(1, -25, 0, 5)
+    close.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
+    close.Text = "X"
+    close.TextColor3 = Color3.fromRGB(255, 200, 200)
+    close.TextSize = 12
+    close.Font = Enum.Font.GothamBold
+    close.BorderSizePixel = 0
+    close.MouseButton1Click:Connect(function()
+        infoFrame:Destroy()
+    end)
 
-	local infoText = Instance.new("TextLabel")
-	infoText.Parent = infoFrame
-	infoText.Size = UDim2.new(1, -20, 1, -40)
-	infoText.Position = UDim2.new(0, 10, 0, 40)
-	infoText.BackgroundTransparency = 1
-	infoText.Text = "Name: "..(playerObj.DisplayName or playerObj.Name).."\nUsername: @"..playerObj.Name.."\nUserID: "..playerObj.UserId.."\nStatus: Online"
-	infoText.TextColor3 = Color3.fromRGB(180, 180, 200)
-	infoText.TextSize = 14
-	infoText.Font = Enum.Font.GothamMedium
-	infoText.TextXAlignment = Enum.TextXAlignment.Left
-	infoText.TextYAlignment = Enum.TextYAlignment.Top
-	infoText.LineHeight = 1.8
+    local infoText = Instance.new("TextLabel")
+    infoText.Parent = infoFrame
+    infoText.Size = UDim2.new(1, -20, 1, -40)
+    infoText.Position = UDim2.new(0, 10, 0, 40)
+    infoText.BackgroundTransparency = 1
+    infoText.Text = "Name: "..(playerObj.DisplayName or playerObj.Name).."\nUsername: @"..playerObj.Name.."\nUserID: "..playerObj.UserId
+    infoText.TextColor3 = Color3.fromRGB(180, 180, 200)
+    infoText.TextSize = 14
+    infoText.Font = Enum.Font.GothamMedium
+    infoText.TextXAlignment = Enum.TextXAlignment.Left
+    infoText.TextYAlignment = Enum.TextYAlignment.Top
+    infoText.LineHeight = 1.8
 end
 
--- ============ ФУНКЦИИ КАМЕРЫ ============
+-- ============ СОЗДАНИЕ ЗАПИСИ ДЛЯ USERS ============
 
-local function toggleFollowPlayer(playerObj)
-	followActive = not followActive
-
-	if followActive then
-		if freeCameraActive then
-			toggleFreeCamera()
-		end
-		if spectateActive then
-			toggleSpectate()
-		end
-
-		if not playerObj or not playerObj.Character then
-			followActive = false
-			return
-		end
-
-		local target = playerObj.Character
-
-		followConnection = RunService.Heartbeat:Connect(function()
-			if target and target.PrimaryPart then
-				Camera.CameraSubject = target.PrimaryPart
-				Camera.CameraType = Enum.CameraType.Custom
-			else
-				if followConnection then
-					followConnection:Disconnect()
-					followConnection = nil
-				end
-				followActive = false
-				Camera.CameraType = Enum.CameraType.Custom
-				Camera.CameraSubject = player.Character
-				updateMenuPopup(selectedPlayer)
-			end
-		end)
-	else
-		if followConnection then
-			followConnection:Disconnect()
-			followConnection = nil
-		end
-		Camera.CameraType = Enum.CameraType.Custom
-		Camera.CameraSubject = player.Character
-		updateMenuPopup(selectedPlayer)
-	end
-end
-
-local function toggleFreeCamera()
-	freeCameraActive = not freeCameraActive
-
-	if freeCameraActive then
-		if spectateActive then
-			toggleSpectate()
-		end
-		if followActive then
-			toggleFollowPlayer(selectedPlayer)
-		end
-
-		freezePlayer()
-
-		local targetPos = Camera.CFrame.Position
-		if selectedPlayer and selectedPlayer.Character and selectedPlayer.Character.PrimaryPart then
-			targetPos = selectedPlayer.Character.PrimaryPart.Position
-			Camera.CFrame = CFrame.new(targetPos + Vector3.new(0, 5, 10), targetPos)
-		end
-
-		Camera.CameraType = Enum.CameraType.Scriptable
-
-		local speed = 50
-		local shiftSpeed = 200
-
-		freeCameraConnection = RunService.RenderStepped:Connect(function()
-			local char = player.Character
-			if char and char.PrimaryPart and playerFrozen then
-				char.PrimaryPart.CFrame = playerOriginalCFrame
-			end
-
-			local moveVector = Vector3.new(0, 0, 0)
-			local forward = Camera.CFrame.LookVector
-			local right = Camera.CFrame.RightVector
-			local up = Camera.CFrame.UpVector
-
-			if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-				moveVector = moveVector + forward
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-				moveVector = moveVector - forward
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-				moveVector = moveVector - right
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-				moveVector = moveVector + right
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
-				moveVector = moveVector - up
-			end
-			if UserInputService:IsKeyDown(Enum.KeyCode.E) then
-				moveVector = moveVector + up
-			end
-
-			if moveVector.Magnitude > 0 then
-				local currentSpeed = UserInputService:IsKeyDown(Enum.KeyCode.LeftShift) and shiftSpeed or speed
-				Camera.CFrame = Camera.CFrame + (moveVector.Unit * currentSpeed * RunService.RenderStepped:Wait())
-			end
-		end)
-
-		local mouseInput
-		mouseInput = UserInputService.InputChanged:Connect(function(input, processed)
-			if processed then return end
-			if input.UserInputType == Enum.UserInputType.MouseMovement then
-				local delta = input.Delta
-				if delta.Magnitude > 0 then
-					local sensitivity = 0.005
-					local newCFrame = Camera.CFrame * CFrame.Angles(0, -delta.X * sensitivity, 0)
-					newCFrame = newCFrame * CFrame.Angles(-delta.Y * sensitivity, 0, 0)
-					Camera.CFrame = newCFrame
-				end
-			end
-		end)
-
-		freeCameraConnection = {freeCameraConnection, mouseInput}
-
-	else
-		if freeCameraConnection then
-			if type(freeCameraConnection) == "table" then
-				for _, conn in ipairs(freeCameraConnection) do
-					conn:Disconnect()
-				end
-			else
-				freeCameraConnection:Disconnect()
-			end
-			freeCameraConnection = nil
-		end
-		unfreezePlayer()
-		Camera.CameraType = Enum.CameraType.Custom
-		Camera.CameraSubject = player.Character
-	end
-	updateMenuPopup(selectedPlayer)
-end
-
-local function teleportToPlayer(playerObj)
-	if not playerObj.Character or not playerObj.Character.PrimaryPart then
-		return
-	end
-
-	local targetPos = playerObj.Character.PrimaryPart.Position
-	local char = player.Character
-	if char and char.PrimaryPart then
-		char.PrimaryPart.CFrame = CFrame.new(targetPos + Vector3.new(0, 3, 0))
-	end
-end
-
-local function toggleSpectate()
-	spectateActive = not spectateActive
-
-	if spectateActive then
-		if freeCameraActive then
-			toggleFreeCamera()
-		end
-		if followActive then
-			toggleFollowPlayer(selectedPlayer)
-		end
-
-		if selectedPlayer and selectedPlayer.Character then
-			freezePlayer()
-			Camera.CameraSubject = selectedPlayer.Character
-			Camera.CameraType = Enum.CameraType.Custom
-
-			spectateConnection = RunService.Heartbeat:Connect(function()
-				local char = player.Character
-				if char and char.PrimaryPart and playerFrozen then
-					char.PrimaryPart.CFrame = playerOriginalCFrame
-				end
-				if selectedPlayer and selectedPlayer.Character then
-					Camera.CameraSubject = selectedPlayer.Character
-				else
-					toggleSpectate()
-				end
-			end)
-		else
-			spectateActive = false
-		end
-	else
-		if spectateConnection then
-			spectateConnection:Disconnect()
-			spectateConnection = nil
-		end
-		unfreezePlayer()
-		Camera.CameraType = Enum.CameraType.Custom
-		Camera.CameraSubject = player.Character
-	end
-	updateMenuPopup(selectedPlayer)
-end
-
--- Функция для показа режима игрока
-local function showPlayerMode(playerObj)
-	local modeText = "● Idle"
-	local modeColor = Color3.fromRGB(200, 200, 200)
-
-	if playerObj == player then
-		if spectateActive then
-			modeText = "● Spectating"
-			modeColor = Color3.fromRGB(100, 255, 100)
-		elseif followActive then
-			modeText = "● Following"
-			modeColor = Color3.fromRGB(100, 255, 100)
-		elseif freeCameraActive then
-			modeText = "● Free Camera"
-			modeColor = Color3.fromRGB(100, 255, 100)
-		end
-	else
-		if selectedPlayer == playerObj and spectateActive then
-			modeText = "● Being Spectated"
-			modeColor = Color3.fromRGB(255, 200, 100)
-		elseif selectedPlayer == playerObj and followActive then
-			modeText = "● Being Followed"
-			modeColor = Color3.fromRGB(255, 200, 100)
-		end
-	end
-
-	local modeFrame = Instance.new("Frame")
-	modeFrame.Parent = ScreenGui
-	modeFrame.Size = UDim2.new(0, 250, 0, 60)
-	modeFrame.Position = UDim2.new(0.5, -125, 0.5, -30)
-	modeFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
-	modeFrame.BackgroundTransparency = 0.05
-	modeFrame.BorderSizePixel = 2
-	modeFrame.BorderColor3 = Color3.fromRGB(60, 60, 80)
-
-	local modeTitle = Instance.new("TextLabel")
-	modeTitle.Parent = modeFrame
-	modeTitle.Size = UDim2.new(1, 0, 0, 20)
-	modeTitle.Position = UDim2.new(0, 10, 0, 5)
-	modeTitle.BackgroundTransparency = 1
-	modeTitle.Text = "Режим игрока"
-	modeTitle.TextColor3 = Color3.fromRGB(200, 200, 220)
-	modeTitle.TextSize = 12
-	modeTitle.Font = Enum.Font.GothamBold
-	modeTitle.TextXAlignment = Enum.TextXAlignment.Left
-
-	local modeLabel = Instance.new("TextLabel")
-	modeLabel.Parent = modeFrame
-	modeLabel.Size = UDim2.new(1, -20, 0, 25)
-	modeLabel.Position = UDim2.new(0, 10, 0, 28)
-	modeLabel.BackgroundTransparency = 1
-	modeLabel.Text = modeText
-	modeLabel.TextColor3 = modeColor
-	modeLabel.TextSize = 16
-	modeLabel.Font = Enum.Font.GothamMedium
-	modeLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local closeBtn = Instance.new("TextButton")
-	closeBtn.Parent = modeFrame
-	closeBtn.Size = UDim2.new(0, 20, 0, 20)
-	closeBtn.Position = UDim2.new(1, -25, 0, 5)
-	closeBtn.BackgroundColor3 = Color3.fromRGB(60, 20, 20)
-	closeBtn.Text = "X"
-	closeBtn.TextColor3 = Color3.fromRGB(255, 200, 200)
-	closeBtn.TextSize = 12
-	closeBtn.Font = Enum.Font.GothamBold
-	closeBtn.BorderSizePixel = 0
-	closeBtn.MouseButton1Click:Connect(function()
-		modeFrame:Destroy()
-	end)
-
-	task.wait(5)
-	if modeFrame then
-		modeFrame:Destroy()
-	end
-end
-
--- ============ ОБНОВЛЕНИЕ МЕНЮ ============
-
-local function updateMenuPopup(playerObj, clickPos)
-	for _, child in pairs(MenuPopupContent:GetChildren()) do
-		child:Destroy()
-	end
-
-	if not playerObj then
-		MenuPopup.Visible = false
-		return
-	end
-
-	local pos = clickPos or Vector2.new(mouse.X, mouse.Y)
-	local popupWidth = 180
-	local popupHeight = 200
-
-	local x = pos.X
-	local y = pos.Y
-
-	if x + popupWidth > ScreenGui.AbsoluteSize.X then
-		x = x - popupWidth
-	end
-	if y + popupHeight > ScreenGui.AbsoluteSize.Y then
-		y = y - popupHeight
-	end
-
-	MenuPopup.Position = UDim2.new(0, x, 0, y)
-	MenuPopup.Size = UDim2.new(0, popupWidth, 0, popupHeight)
-	MenuPopup.Visible = true
-	MenuPopupTitleLabel.Text = playerObj.DisplayName or playerObj.Name
-
-	local statusText = "● Idle"
-	local statusColor = Color3.fromRGB(200, 200, 200)
-	if spectateActive then 
-		statusText = "● Spectating"
-		statusColor = Color3.fromRGB(100, 255, 100)
-	elseif followActive then 
-		statusText = "● Following"
-		statusColor = Color3.fromRGB(100, 255, 100)
-	elseif freeCameraActive then 
-		statusText = "● Free Camera"
-		statusColor = Color3.fromRGB(100, 255, 100)
-	end
-
-	local statusLabel = Instance.new("TextLabel")
-	statusLabel.Parent = MenuPopupContent
-	statusLabel.Size = UDim2.new(1, -10, 0, 20)
-	statusLabel.Position = UDim2.new(0, 5, 0, 5)
-	statusLabel.BackgroundTransparency = 1
-	statusLabel.Text = statusText
-	statusLabel.TextColor3 = statusColor
-	statusLabel.TextSize = 10
-	statusLabel.Font = Enum.Font.GothamMedium
-	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-	local actions = {
-		{name = "Info", icon = "ℹ", action = function()
-			showPlayerInfo(playerObj)
-			MenuPopup.Visible = false
-		end},
-		{name = followActive and "Stop Follow" or "Follow", icon = "👁", action = function()
-			toggleFollowPlayer(playerObj)
-		end},
-		{name = freeCameraActive and "Stop Free" or "Free Cam", icon = "🎥", action = function()
-			toggleFreeCamera()
-		end},
-		{name = "Teleport", icon = "🚀", action = function()
-			teleportToPlayer(playerObj)
-			MenuPopup.Visible = false
-		end},
-		{name = spectateActive and "Stop Spec" or "Spectate", icon = "👀", action = function()
-			toggleSpectate()
-		end},
-	}
-
-	for i, action in ipairs(actions) do
-		local btn = Instance.new("TextButton")
-		btn.Parent = MenuPopupContent
-		btn.Size = UDim2.new(1, -10, 0, 24)
-		btn.Position = UDim2.new(0, 5, 0, 30 + (i-1) * 28)
-
-		local isActive = false
-		if action.name == "Stop Follow" or action.name == "Follow" then
-			isActive = followActive
-		elseif action.name == "Stop Free" or action.name == "Free Cam" then
-			isActive = freeCameraActive
-		elseif action.name == "Stop Spec" or action.name == "Spectate" then
-			isActive = spectateActive
-		end
-
-		btn.BackgroundColor3 = isActive and Color3.fromRGB(60, 40, 40) or Color3.fromRGB(30, 30, 40)
-		btn.BackgroundTransparency = 0.5
-		btn.Text = action.icon.." "..action.name
-		btn.TextColor3 = isActive and Color3.fromRGB(255, 150, 150) or Color3.fromRGB(200, 200, 220)
-		btn.TextSize = 11
-		btn.Font = Enum.Font.GothamMedium
-		btn.BorderSizePixel = 1
-		btn.BorderColor3 = isActive and Color3.fromRGB(80, 50, 50) or Color3.fromRGB(50, 50, 60)
-		btn.TextXAlignment = Enum.TextXAlignment.Left
-		btn.TextTruncate = Enum.TextTruncate.AtEnd
-
-		btn.MouseButton1Click:Connect(function()
-			action.action()
-		end)
-
-		btn.MouseEnter:Connect(function()
-			btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-			btn.BackgroundTransparency = 0.3
-		end)
-
-		btn.MouseLeave:Connect(function()
-			local isActiveBtn = false
-			if action.name == "Stop Follow" or action.name == "Follow" then
-				isActiveBtn = followActive
-			elseif action.name == "Stop Free" or action.name == "Free Cam" then
-				isActiveBtn = freeCameraActive
-			elseif action.name == "Stop Spec" or action.name == "Spectate" then
-				isActiveBtn = spectateActive
-			end
-			btn.BackgroundColor3 = isActiveBtn and Color3.fromRGB(60, 40, 40) or Color3.fromRGB(30, 30, 40)
-			btn.BackgroundTransparency = 0.5
-		end)
-	end
-end
-
--- ============ СОЗДАНИЕ ЗАПИСЕЙ ============
-
--- Запись для ServerSide (только Info и Режим)
-local function createServerSideEntry(playerData, index)
-	-- Ищем игрока в Roblox по ID
-	local playerObj = Players:FindFirstChild(playerData.name)
-	if not playerObj then
-		-- Если игрок не найден, создаем запись без аватара
-		local entry = Instance.new("Frame")
-		entry.Parent = ServerSideFrame
-		entry.Size = UDim2.new(1, 0, 0, 50)
-		entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
-		entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-		entry.BackgroundTransparency = 0.5
-		entry.BorderSizePixel = 1
-		entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
-
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Parent = entry
-		nameLabel.Size = UDim2.new(1, 0, 1, 0)
-		nameLabel.Position = UDim2.new(0, 10, 0, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = playerData.displayName or playerData.name .. " (не в игре)"
-		nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-		nameLabel.TextSize = 13
-		nameLabel.Font = Enum.Font.GothamMedium
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-		return entry
-	end
-
-	-- Создаем запись как в Users
-	local entry = Instance.new("Frame")
-	entry.Parent = ServerSideFrame
-	entry.Size = UDim2.new(1, 0, 0, 50)
-	entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
-	entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	entry.BackgroundTransparency = 0.5
-	entry.BorderSizePixel = 1
-	entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
-
-	if selectedPlayer == playerObj then
-		entry.BackgroundColor3 = Color3.fromRGB(40, 60, 80)
-		entry.BackgroundTransparency = 0.3
-	end
-
-	local avatarBtn = Instance.new("ImageButton")
-	avatarBtn.Parent = entry
-	avatarBtn.Size = UDim2.new(0, 40, 0, 40)
-	avatarBtn.Position = UDim2.new(0, 5, 0, 5)
-	avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	avatarBtn.BorderSizePixel = 1
-	avatarBtn.BorderColor3 = Color3.fromRGB(60, 60, 70)
-	avatarBtn.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-	avatarBtn.ClipsDescendants = true
-
-	local avatarCorner = Instance.new("UICorner")
-	avatarCorner.Parent = avatarBtn
-	avatarCorner.CornerRadius = UDim.new(0, 4)
-
-	local thumb = Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-	if thumb then
-		avatarBtn.Image = thumb
-	end
-
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Parent = entry
-	nameLabel.Size = UDim2.new(0, 130, 0, 18)
-	nameLabel.Position = UDim2.new(0, 52, 0, 6)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = playerObj.DisplayName or playerObj.Name
-	nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-	nameLabel.TextSize = 13
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-
-	local usernameLabel = Instance.new("TextLabel")
-	usernameLabel.Parent = entry
-	usernameLabel.Size = UDim2.new(0, 130, 0, 14)
-	usernameLabel.Position = UDim2.new(0, 52, 0, 26)
-	usernameLabel.BackgroundTransparency = 1
-	usernameLabel.Text = "@"..playerObj.Name
-	usernameLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	usernameLabel.TextSize = 11
-	usernameLabel.Font = Enum.Font.GothamMedium
-	usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-
-	-- Клик по аватару в ServerSide - только Info и Режим
-	avatarBtn.MouseButton1Click:Connect(function()
-		local pos = Vector2.new(mouse.X, mouse.Y)
-		if selectedPlayer == playerObj then
-			MenuPopup.Visible = false
-		else
-			selectedPlayer = playerObj
-
-			for _, child in pairs(MenuPopupContent:GetChildren()) do
-				child:Destroy()
-			end
-
-			local popupWidth = 180
-			local popupHeight = 100
-
-			local x = pos.X
-			local y = pos.Y
-
-			if x + popupWidth > ScreenGui.AbsoluteSize.X then
-				x = x - popupWidth
-			end
-			if y + popupHeight > ScreenGui.AbsoluteSize.Y then
-				y = y - popupHeight
-			end
-
-			MenuPopup.Position = UDim2.new(0, x, 0, y)
-			MenuPopup.Size = UDim2.new(0, popupWidth, 0, popupHeight)
-			MenuPopup.Visible = true
-			MenuPopupTitleLabel.Text = playerObj.DisplayName or playerObj.Name
-
-			local actions = {
-				{name = "Info", icon = "ℹ", action = function()
-					showPlayerInfo(playerObj)
-					MenuPopup.Visible = false
-				end},
-				{name = "Режим", icon = "🎯", action = function()
-					showPlayerMode(playerObj)
-					MenuPopup.Visible = false
-				end},
-			}
-
-			for i, action in ipairs(actions) do
-				local btn = Instance.new("TextButton")
-				btn.Parent = MenuPopupContent
-				btn.Size = UDim2.new(1, -10, 0, 30)
-				btn.Position = UDim2.new(0, 5, 0, 5 + (i-1) * 35)
-
-				btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-				btn.BackgroundTransparency = 0.5
-				btn.Text = action.icon.." "..action.name
-				btn.TextColor3 = Color3.fromRGB(200, 200, 220)
-				btn.TextSize = 11
-				btn.Font = Enum.Font.GothamMedium
-				btn.BorderSizePixel = 1
-				btn.BorderColor3 = Color3.fromRGB(50, 50, 60)
-				btn.TextXAlignment = Enum.TextXAlignment.Left
-				btn.TextTruncate = Enum.TextTruncate.AtEnd
-
-				btn.MouseButton1Click:Connect(function()
-					action.action()
-				end)
-
-				btn.MouseEnter:Connect(function()
-					btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
-					btn.BackgroundTransparency = 0.3
-				end)
-
-				btn.MouseLeave:Connect(function()
-					btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-					btn.BackgroundTransparency = 0.5
-				end)
-			end
-		end
-	end)
-
-	avatarBtn.MouseEnter:Connect(function()
-		avatarBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-	end)
-
-	avatarBtn.MouseLeave:Connect(function()
-		avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	end)
-
-	return entry
-end
-
--- Запись для Users (полное меню)
 local function createUserEntry(playerObj, index)
-	local entry = Instance.new("Frame")
-	entry.Parent = UsersFrame
-	entry.Size = UDim2.new(1, 0, 0, 50)
-	entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
-	entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-	entry.BackgroundTransparency = 0.5
-	entry.BorderSizePixel = 1
-	entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
+    local entry = Instance.new("Frame")
+    entry.Parent = UsersFrame
+    entry.Size = UDim2.new(1, 0, 0, 50)
+    entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
+    entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    entry.BackgroundTransparency = 0.5
+    entry.BorderSizePixel = 1
+    entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
 
-	if selectedPlayer == playerObj then
-		entry.BackgroundColor3 = Color3.fromRGB(40, 60, 80)
-		entry.BackgroundTransparency = 0.3
-	end
+    local avatarBtn = Instance.new("ImageButton")
+    avatarBtn.Parent = entry
+    avatarBtn.Size = UDim2.new(0, 40, 0, 40)
+    avatarBtn.Position = UDim2.new(0, 5, 0, 5)
+    avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    avatarBtn.BorderSizePixel = 1
+    avatarBtn.BorderColor3 = Color3.fromRGB(60, 60, 70)
+    avatarBtn.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    avatarBtn.ClipsDescendants = true
 
-	local avatarBtn = Instance.new("ImageButton")
-	avatarBtn.Parent = entry
-	avatarBtn.Size = UDim2.new(0, 40, 0, 40)
-	avatarBtn.Position = UDim2.new(0, 5, 0, 5)
-	avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	avatarBtn.BorderSizePixel = 1
-	avatarBtn.BorderColor3 = Color3.fromRGB(60, 60, 70)
-	avatarBtn.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
-	avatarBtn.ClipsDescendants = true
+    local avatarCorner = Instance.new("UICorner")
+    avatarCorner.Parent = avatarBtn
+    avatarCorner.CornerRadius = UDim.new(0, 4)
 
-	local avatarCorner = Instance.new("UICorner")
-	avatarCorner.Parent = avatarBtn
-	avatarCorner.CornerRadius = UDim.new(0, 4)
+    local thumb = Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+    if thumb then
+        avatarBtn.Image = thumb
+    end
 
-	local thumb = Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
-	if thumb then
-		avatarBtn.Image = thumb
-	end
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Parent = entry
+    nameLabel.Size = UDim2.new(0, 130, 0, 18)
+    nameLabel.Position = UDim2.new(0, 52, 0, 6)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = playerObj.DisplayName or playerObj.Name
+    nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+    nameLabel.TextSize = 13
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Parent = entry
-	nameLabel.Size = UDim2.new(0, 130, 0, 18)
-	nameLabel.Position = UDim2.new(0, 52, 0, 6)
-	nameLabel.BackgroundTransparency = 1
-	nameLabel.Text = playerObj.DisplayName or playerObj.Name
-	nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-	nameLabel.TextSize = 13
-	nameLabel.Font = Enum.Font.GothamBold
-	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    local usernameLabel = Instance.new("TextLabel")
+    usernameLabel.Parent = entry
+    usernameLabel.Size = UDim2.new(0, 130, 0, 14)
+    usernameLabel.Position = UDim2.new(0, 52, 0, 26)
+    usernameLabel.BackgroundTransparency = 1
+    usernameLabel.Text = "@"..playerObj.Name
+    usernameLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+    usernameLabel.TextSize = 11
+    usernameLabel.Font = Enum.Font.GothamMedium
+    usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local usernameLabel = Instance.new("TextLabel")
-	usernameLabel.Parent = entry
-	usernameLabel.Size = UDim2.new(0, 130, 0, 14)
-	usernameLabel.Position = UDim2.new(0, 52, 0, 26)
-	usernameLabel.BackgroundTransparency = 1
-	usernameLabel.Text = "@"..playerObj.Name
-	usernameLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	usernameLabel.TextSize = 11
-	usernameLabel.Font = Enum.Font.GothamMedium
-	usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
-	usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+    return entry
+end
 
-	local idLabel = Instance.new("TextLabel")
-	idLabel.Parent = entry
-	idLabel.Size = UDim2.new(0, 100, 0, 14)
-	idLabel.Position = UDim2.new(0, 190, 0, 6)
-	idLabel.BackgroundTransparency = 1
-	idLabel.Text = "ID: "..playerObj.UserId
-	idLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	idLabel.TextSize = 10
-	idLabel.Font = Enum.Font.GothamMedium
-	idLabel.TextXAlignment = Enum.TextXAlignment.Left
+-- ============ СОЗДАНИЕ ЗАПИСИ ДЛЯ SERVERSIDE ============
 
-	local ageLabel = Instance.new("TextLabel")
-	ageLabel.Parent = entry
-	ageLabel.Size = UDim2.new(0, 100, 0, 14)
-	ageLabel.Position = UDim2.new(0, 190, 0, 22)
-	ageLabel.BackgroundTransparency = 1
-	ageLabel.Text = "Age: "..(playerObj.AccountAge or "Unknown").."d"
-	ageLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
-	ageLabel.TextSize = 10
-	ageLabel.Font = Enum.Font.GothamMedium
-	ageLabel.TextXAlignment = Enum.TextXAlignment.Left
+local function createServerSideEntry(playerId, playerData, index)
+    -- Ищем игрока в Roblox
+    local playerObj = Players:FindFirstChild(playerData.name)
+    
+    local entry = Instance.new("Frame")
+    entry.Parent = ServerSideFrame
+    entry.Size = UDim2.new(1, 0, 0, 50)
+    entry.Position = UDim2.new(0, 0, 0, (index-1) * 53)
+    entry.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    entry.BackgroundTransparency = 0.5
+    entry.BorderSizePixel = 1
+    entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
 
-	local timeLabel = Instance.new("TextLabel")
-	timeLabel.Parent = entry
-	timeLabel.Size = UDim2.new(0, 80, 0, 14)
-	timeLabel.Position = UDim2.new(0, 300, 0, 6)
-	timeLabel.BackgroundTransparency = 1
-	timeLabel.Text = "00:00"
-	timeLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
-	timeLabel.TextSize = 11
-	timeLabel.Font = Enum.Font.GothamMedium
-	timeLabel.TextXAlignment = Enum.TextXAlignment.Left
+    if selectedPlayer == playerObj then
+        entry.BackgroundColor3 = Color3.fromRGB(40, 60, 80)
+        entry.BackgroundTransparency = 0.3
+    end
 
-	local statusLabel = Instance.new("TextLabel")
-	statusLabel.Parent = entry
-	statusLabel.Size = UDim2.new(0, 20, 0, 20)
-	statusLabel.Position = UDim2.new(0, 385, 0, 15)
-	statusLabel.BackgroundTransparency = 1
-	statusLabel.Text = "●"
-	statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-	statusLabel.TextSize = 16
-	statusLabel.Font = Enum.Font.GothamMedium
-	statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    local avatarBtn = Instance.new("ImageButton")
+    avatarBtn.Parent = entry
+    avatarBtn.Size = UDim2.new(0, 40, 0, 40)
+    avatarBtn.Position = UDim2.new(0, 5, 0, 5)
+    avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    avatarBtn.BorderSizePixel = 1
+    avatarBtn.BorderColor3 = Color3.fromRGB(60, 60, 70)
+    avatarBtn.Image = "rbxasset://textures/ui/GuiImagePlaceholder.png"
+    avatarBtn.ClipsDescendants = true
 
-	avatarBtn.MouseButton1Click:Connect(function()
-		local pos = Vector2.new(mouse.X, mouse.Y)
-		if selectedPlayer == playerObj then
-			MenuPopup.Visible = false
-		else
-			if spectateActive then
-				toggleSpectate()
-			end
-			if followActive then
-				toggleFollowPlayer(nil)
-			end
-			if freeCameraActive then
-				toggleFreeCamera()
-			end
-			selectedPlayer = playerObj
-			updateMenuPopup(playerObj, pos)
-			updateUsersList()
-		end
-	end)
+    local avatarCorner = Instance.new("UICorner")
+    avatarCorner.Parent = avatarBtn
+    avatarCorner.CornerRadius = UDim.new(0, 4)
 
-	avatarBtn.MouseEnter:Connect(function()
-		avatarBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-	end)
+    if playerObj then
+        local thumb = Players:GetUserThumbnailAsync(playerObj.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
+        if thumb then
+            avatarBtn.Image = thumb
+        end
+    end
 
-	avatarBtn.MouseLeave:Connect(function()
-		avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-	end)
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.Parent = entry
+    nameLabel.Size = UDim2.new(0, 130, 0, 18)
+    nameLabel.Position = UDim2.new(0, 52, 0, 6)
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.Text = playerData.displayName or playerData.name
+    nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+    nameLabel.TextSize = 13
+    nameLabel.Font = Enum.Font.GothamBold
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	local function updateTime()
-		if not playerJoinTimes[playerObj] then
-			playerJoinTimes[playerObj] = tick()
-		end
-		local elapsed = tick() - playerJoinTimes[playerObj]
-		timeLabel.Text = formatTime(elapsed)
-	end
+    local usernameLabel = Instance.new("TextLabel")
+    usernameLabel.Parent = entry
+    usernameLabel.Size = UDim2.new(0, 130, 0, 14)
+    usernameLabel.Position = UDim2.new(0, 52, 0, 26)
+    usernameLabel.BackgroundTransparency = 1
+    usernameLabel.Text = "@"..(playerData.name or "unknown")
+    usernameLabel.TextColor3 = Color3.fromRGB(140, 140, 160)
+    usernameLabel.TextSize = 11
+    usernameLabel.Font = Enum.Font.GothamMedium
+    usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-	updateTime()
+    -- Статус (онлайн/оффлайн)
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Parent = entry
+    statusLabel.Size = UDim2.new(0, 20, 0, 20)
+    statusLabel.Position = UDim2.new(0, 385, 0, 15)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "●"
+    statusLabel.TextColor3 = playerObj and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(255, 100, 100)
+    statusLabel.TextSize = 16
+    statusLabel.Font = Enum.Font.GothamMedium
+    statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-	local timeConnection
-	timeConnection = RunService.Heartbeat:Connect(function()
-		if entry.Parent then
-			updateTime()
-		else
-			timeConnection:Disconnect()
-		end
-	end)
+    -- Клик по аватару
+    avatarBtn.MouseButton1Click:Connect(function()
+        if not playerObj then
+            print("❌ Игрок не в игре")
+            return
+        end
+        
+        local pos = Vector2.new(mouse.X, mouse.Y)
+        selectedPlayer = playerObj
 
-	return entry
+        for _, child in pairs(MenuPopupContent:GetChildren()) do
+            child:Destroy()
+        end
+
+        local popupWidth = 180
+        local popupHeight = 100
+
+        local x = pos.X
+        local y = pos.Y
+
+        if x + popupWidth > ScreenGui.AbsoluteSize.X then
+            x = x - popupWidth
+        end
+        if y + popupHeight > ScreenGui.AbsoluteSize.Y then
+            y = y - popupHeight
+        end
+
+        MenuPopup.Position = UDim2.new(0, x, 0, y)
+        MenuPopup.Size = UDim2.new(0, popupWidth, 0, popupHeight)
+        MenuPopup.Visible = true
+        MenuPopupTitleLabel.Text = playerObj.DisplayName or playerObj.Name
+
+        local actions = {
+            {name = "Info", icon = "ℹ", action = function()
+                showPlayerInfo(playerObj)
+                MenuPopup.Visible = false
+            end},
+            {name = "Режим", icon = "🎯", action = function()
+                showPlayerMode(playerObj)
+                MenuPopup.Visible = false
+            end},
+        }
+
+        for i, action in ipairs(actions) do
+            local btn = Instance.new("TextButton")
+            btn.Parent = MenuPopupContent
+            btn.Size = UDim2.new(1, -10, 0, 30)
+            btn.Position = UDim2.new(0, 5, 0, 5 + (i-1) * 35)
+
+            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+            btn.BackgroundTransparency = 0.5
+            btn.Text = action.icon.." "..action.name
+            btn.TextColor3 = Color3.fromRGB(200, 200, 220)
+            btn.TextSize = 11
+            btn.Font = Enum.Font.GothamMedium
+            btn.BorderSizePixel = 1
+            btn.BorderColor3 = Color3.fromRGB(50, 50, 60)
+            btn.TextXAlignment = Enum.TextXAlignment.Left
+            btn.TextTruncate = Enum.TextTruncate.AtEnd
+
+            btn.MouseButton1Click:Connect(function()
+                action.action()
+            end)
+
+            btn.MouseEnter:Connect(function()
+                btn.BackgroundColor3 = Color3.fromRGB(45, 45, 55)
+                btn.BackgroundTransparency = 0.3
+            end)
+
+            btn.MouseLeave:Connect(function()
+                btn.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+                btn.BackgroundTransparency = 0.5
+            end)
+        end
+    end)
+
+    avatarBtn.MouseEnter:Connect(function()
+        avatarBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    end)
+
+    avatarBtn.MouseLeave:Connect(function()
+        avatarBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+    end)
+
+    return entry
 end
 
 -- ============ ОБНОВЛЕНИЕ СПИСКОВ ============
 
 local function updateUsersList()
-	for _, child in pairs(UsersFrame:GetChildren()) do
-		if child:IsA("Frame") then
-			child:Destroy()
-		end
-	end
+    for _, child in pairs(UsersFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
 
-	local players = Players:GetPlayers()
-	local onlineCount = #players
+    local players = Players:GetPlayers()
+    local onlineCount = #players
 
-	OnlineLabel.Text = "Online ["..onlineCount.."]"
+    OnlineLabel.Text = "Online ["..onlineCount.."]"
 
-	UsersFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(onlineCount * 53 + 10, 400))
+    UsersFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(onlineCount * 53 + 10, 400))
 
-	for i, plr in ipairs(players) do
-		createUserEntry(plr, i)
-	end
-
-	if selectedPlayer and not table.find(Players:GetPlayers(), selectedPlayer) then
-		selectedPlayer = nil
-		if spectateActive then
-			toggleSpectate()
-		end
-		if followActive then
-			toggleFollowPlayer(nil)
-		end
-		if freeCameraActive then
-			toggleFreeCamera()
-		end
-		MenuPopup.Visible = false
-	end
+    for i, plr in ipairs(players) do
+        createUserEntry(plr, i)
+    end
 end
 
--- Обновление списка ServerSide (игроки с сервера)
 local function updateServerSideList()
-	for _, child in pairs(ServerSideFrame:GetChildren()) do
-		if child:IsA("Frame") then
-			child:Destroy()
-		end
-	end
+    for _, child in pairs(ServerSideFrame:GetChildren()) do
+        if child:IsA("Frame") then
+            child:Destroy()
+        end
+    end
 
-	-- Получаем игроков с сервера
-	local playersData = getServerPlayers()
-	local playerIds = {}
-	for _, data in pairs(playersData) do
-		table.insert(playerIds, data)
-	end
+    local playersData = getServerPlayers()
+    local count = 0
+    for _ in pairs(playersData) do count = count + 1 end
 
-	local header = Instance.new("TextLabel")
-	header.Parent = ServerSideFrame
-	header.Size = UDim2.new(1, 0, 0, 30)
-	header.BackgroundTransparency = 1
-	header.Text = "🌐 Server Players (" .. #playerIds .. ")"
-	header.TextColor3 = Color3.fromRGB(200, 200, 220)
-	header.TextSize = 16
-	header.Font = Enum.Font.GothamBold
-	header.TextXAlignment = Enum.TextXAlignment.Left
+    local header = Instance.new("TextLabel")
+    header.Parent = ServerSideFrame
+    header.Size = UDim2.new(1, 0, 0, 30)
+    header.BackgroundTransparency = 1
+    header.Text = "🌐 Server Players (" .. count .. ")"
+    header.TextColor3 = Color3.fromRGB(200, 200, 220)
+    header.TextSize = 16
+    header.Font = Enum.Font.GothamBold
+    header.TextXAlignment = Enum.TextXAlignment.Left
 
-	ServerSideFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(#playerIds * 53 + 50, 400))
+    ServerSideFrame.CanvasSize = UDim2.new(0, 0, 0, math.max(count * 53 + 50, 400))
 
-	for i, data in ipairs(playerIds) do
-		createServerSideEntry(data, i)
-	end
+    local i = 1
+    for id, data in pairs(playersData) do
+        createServerSideEntry(id, data, i)
+        i = i + 1
+    end
 end
 
 -- ============ UI ФУНКЦИИ ============
 
-local function createMapUI()
-	for _, child in pairs(MapFrame:GetChildren()) do
-		child:Destroy()
-	end
-
-	local title = Instance.new("TextLabel")
-	title.Parent = MapFrame
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "Map"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 16
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-
-	local mapBg = Instance.new("Frame")
-	mapBg.Parent = MapFrame
-	mapBg.Size = UDim2.new(1, 0, 0, 400)
-	mapBg.Position = UDim2.new(0, 0, 0, 35)
-	mapBg.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-	mapBg.BorderSizePixel = 1
-	mapBg.BorderColor3 = Color3.fromRGB(40, 40, 50)
-
-	local minimap = Instance.new("Frame")
-	minimap.Parent = mapBg
-	minimap.Size = UDim2.new(0, 350, 0, 350)
-	minimap.Position = UDim2.new(0.5, -175, 0.5, -175)
-	minimap.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-	minimap.BorderSizePixel = 1
-	minimap.BorderColor3 = Color3.fromRGB(60, 60, 70)
-
-	local legend = Instance.new("Frame")
-	legend.Parent = mapBg
-	legend.Size = UDim2.new(0, 150, 0, 100)
-	legend.Position = UDim2.new(1, -160, 0, 10)
-	legend.BackgroundTransparency = 1
-
-	local legendItems = {
-		{color = Color3.fromRGB(100, 200, 255), label = "Selected Player"},
-		{color = Color3.fromRGB(100, 255, 100), label = "You"},
-		{color = Color3.fromRGB(255, 50, 50), label = "Enemies"},
-	}
-
-	for i, item in ipairs(legendItems) do
-		local row = Instance.new("Frame")
-		row.Parent = legend
-		row.Size = UDim2.new(1, 0, 0, 25)
-		row.Position = UDim2.new(0, 0, 0, (i-1) * 30)
-		row.BackgroundTransparency = 1
-
-		local dot = Instance.new("Frame")
-		dot.Parent = row
-		dot.Size = UDim2.new(0, 12, 0, 12)
-		dot.Position = UDim2.new(0, 0, 0, 6)
-		dot.BackgroundColor3 = item.color
-		dot.BorderSizePixel = 0
-
-		local label = Instance.new("TextLabel")
-		label.Parent = row
-		label.Size = UDim2.new(1, -20, 1, 0)
-		label.Position = UDim2.new(0, 20, 0, 0)
-		label.BackgroundTransparency = 1
-		label.Text = item.label
-		label.TextColor3 = Color3.fromRGB(160, 160, 180)
-		label.TextSize = 11
-		label.Font = Enum.Font.GothamMedium
-		label.TextXAlignment = Enum.TextXAlignment.Left
-	end
-
-	local function updateMinimap()
-		for _, child in pairs(minimap:GetChildren()) do
-			if child:IsA("Frame") and child.Name == "PlayerDot" then
-				child:Destroy()
-			end
-		end
-
-		local allPlayers = Players:GetPlayers()
-		local playerPos = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position or Vector3.new(0, 0, 0)
-
-		local mapCenter = playerPos
-		local mapScale = 50
-
-		for _, plr in ipairs(allPlayers) do
-			if plr.Character and plr.Character.PrimaryPart then
-				local pos = plr.Character.PrimaryPart.Position
-				local offset = pos - mapCenter
-
-				local x = offset.X / mapScale
-				local z = offset.Z / mapScale
-
-				if math.abs(x) <= 3.5 and math.abs(z) <= 3.5 then
-					local dot = Instance.new("Frame")
-					dot.Parent = minimap
-					dot.Name = "PlayerDot"
-					dot.Size = UDim2.new(0, 8, 0, 8)
-					dot.Position = UDim2.new(0.5, x * 50, 0.5, z * 50)
-					dot.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-					dot.BorderSizePixel = 0
-					dot.AnchorPoint = Vector2.new(0.5, 0.5)
-
-					if plr == player then
-						dot.BackgroundColor3 = Color3.fromRGB(100, 255, 100)
-						dot.Size = UDim2.new(0, 10, 0, 10)
-					elseif selectedPlayer and plr == selectedPlayer then
-						dot.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-						dot.Size = UDim2.new(0, 12, 0, 12)
-						local glow = Instance.new("Frame")
-						glow.Parent = dot
-						glow.Size = UDim2.new(1, 8, 1, 8)
-						glow.Position = UDim2.new(0.5, -4, 0.5, -4)
-						glow.BackgroundColor3 = Color3.fromRGB(100, 200, 255)
-						glow.BackgroundTransparency = 0.7
-						glow.BorderSizePixel = 0
-						glow.AnchorPoint = Vector2.new(0.5, 0.5)
-					end
-				end
-			end
-		end
-	end
-
-	updateMinimap()
-
-	local updateConnection
-	updateConnection = RunService.Heartbeat:Connect(function()
-		if MapFrame.Visible then
-			updateMinimap()
-		end
-	end)
-
-	MapFrame.Destroying:Connect(function()
-		if updateConnection then
-			updateConnection:Disconnect()
-		end
-	end)
-end
-
 local function createSettingsUI()
-	for _, child in pairs(SettingsFrame:GetChildren()) do
-		child:Destroy()
-	end
+    for _, child in pairs(SettingsFrame:GetChildren()) do
+        child:Destroy()
+    end
 
-	local title = Instance.new("TextLabel")
-	title.Parent = SettingsFrame
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "Settings"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 16
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
+    local title = Instance.new("TextLabel")
+    title.Parent = SettingsFrame
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.Text = "Settings"
+    title.TextColor3 = Color3.fromRGB(200, 200, 220)
+    title.TextSize = 16
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
 
-	local settings = {
-		{name = "Auto Refresh", desc = "Refresh player list automatically"},
-		{name = "Show Ping", desc = "Display ping in player list"},
-		{name = "Compact Mode", desc = "Compact UI layout"},
-		{name = "Dark Theme", desc = "Enable dark color scheme"},
-	}
-
-	for i, setting in ipairs(settings) do
-		local frame = Instance.new("Frame")
-		frame.Parent = SettingsFrame
-		frame.Size = UDim2.new(1, 0, 0, 40)
-		frame.Position = UDim2.new(0, 0, 0, 35 + (i-1) * 45)
-		frame.BackgroundTransparency = 1
-
-		local label = Instance.new("TextLabel")
-		label.Parent = frame
-		label.Size = UDim2.new(0, 200, 1, 0)
-		label.BackgroundTransparency = 1
-		label.Text = setting.name
-		label.TextColor3 = Color3.fromRGB(180, 180, 200)
-		label.TextSize = 13
-		label.Font = Enum.Font.GothamMedium
-		label.TextXAlignment = Enum.TextXAlignment.Left
-
-		local desc = Instance.new("TextLabel")
-		desc.Parent = frame
-		desc.Size = UDim2.new(0, 300, 1, 0)
-		desc.Position = UDim2.new(0, 210, 0, 0)
-		desc.BackgroundTransparency = 1
-		desc.Text = setting.desc
-		desc.TextColor3 = Color3.fromRGB(120, 120, 140)
-		desc.TextSize = 11
-		desc.Font = Enum.Font.GothamMedium
-		desc.TextXAlignment = Enum.TextXAlignment.Left
-
-		local toggle = Instance.new("TextButton")
-		toggle.Parent = frame
-		toggle.Size = UDim2.new(0, 60, 0, 25)
-		toggle.Position = UDim2.new(1, -70, 0, 7)
-		toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-		toggle.Text = "OFF"
-		toggle.TextColor3 = Color3.fromRGB(200, 100, 100)
-		toggle.TextSize = 11
-		toggle.Font = Enum.Font.GothamBold
-		toggle.BorderSizePixel = 0
-
-		local toggled = false
-		toggle.MouseButton1Click:Connect(function()
-			toggled = not toggled
-			if toggled then
-				toggle.BackgroundColor3 = Color3.fromRGB(40, 80, 40)
-				toggle.Text = "ON"
-				toggle.TextColor3 = Color3.fromRGB(100, 255, 100)
-			else
-				toggle.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-				toggle.Text = "OFF"
-				toggle.TextColor3 = Color3.fromRGB(200, 100, 100)
-			end
-		end)
-	end
-end
-
-local function createAutoTasksUI()
-	for _, child in pairs(AutoTasksFrame:GetChildren()) do
-		child:Destroy()
-	end
-
-	local title = Instance.new("TextLabel")
-	title.Parent = AutoTasksFrame
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "Auto Tasks"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 16
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-
-	local tasks = {
-		{name = "Auto Farm", status = "Idle"},
-		{name = "Auto Attack", status = "Idle"},
-		{name = "Auto Heal", status = "Active"},
-		{name = "Auto Collect", status = "Idle"},
-	}
-
-	for i, task in ipairs(tasks) do
-		local frame = Instance.new("Frame")
-		frame.Parent = AutoTasksFrame
-		frame.Size = UDim2.new(1, 0, 0, 45)
-		frame.Position = UDim2.new(0, 0, 0, 35 + (i-1) * 50)
-		frame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
-		frame.BackgroundTransparency = 0.3
-		frame.BorderSizePixel = 1
-		frame.BorderColor3 = Color3.fromRGB(40, 40, 50)
-
-		local nameLabel = Instance.new("TextLabel")
-		nameLabel.Parent = frame
-		nameLabel.Size = UDim2.new(0, 150, 1, 0)
-		nameLabel.Position = UDim2.new(0, 10, 0, 0)
-		nameLabel.BackgroundTransparency = 1
-		nameLabel.Text = task.name
-		nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-		nameLabel.TextSize = 13
-		nameLabel.Font = Enum.Font.GothamMedium
-		nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-		local statusLabel = Instance.new("TextLabel")
-		statusLabel.Parent = frame
-		statusLabel.Size = UDim2.new(0, 100, 1, 0)
-		statusLabel.Position = UDim2.new(0, 170, 0, 0)
-		statusLabel.BackgroundTransparency = 1
-		statusLabel.Text = task.status
-		statusLabel.TextColor3 = task.status == "Active" and Color3.fromRGB(100, 255, 100) or Color3.fromRGB(200, 200, 200)
-		statusLabel.TextSize = 12
-		statusLabel.Font = Enum.Font.GothamMedium
-		statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-		local startBtn = Instance.new("TextButton")
-		startBtn.Parent = frame
-		startBtn.Size = UDim2.new(0, 80, 0, 30)
-		startBtn.Position = UDim2.new(1, -90, 0, 7)
-		startBtn.BackgroundColor3 = Color3.fromRGB(40, 60, 80)
-		startBtn.Text = "Start"
-		startBtn.TextColor3 = Color3.fromRGB(200, 200, 220)
-		startBtn.TextSize = 12
-		startBtn.Font = Enum.Font.GothamMedium
-		startBtn.BorderSizePixel = 0
-
-		startBtn.MouseButton1Click:Connect(function()
-			if statusLabel.Text == "Idle" then
-				statusLabel.Text = "Active"
-				statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-				startBtn.Text = "Stop"
-			else
-				statusLabel.Text = "Idle"
-				statusLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-				startBtn.Text = "Start"
-			end
-		end)
-	end
-end
-
-local function createBuilderUI()
-	for _, child in pairs(BuilderFrame:GetChildren()) do
-		child:Destroy()
-	end
-
-	local title = Instance.new("TextLabel")
-	title.Parent = BuilderFrame
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "Builder"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 16
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
-
-	local tools = {"Select", "Move", "Rotate", "Scale", "Paint", "Delete"}
-
-	for i, tool in ipairs(tools) do
-		local btn = Instance.new("TextButton")
-		btn.Parent = BuilderFrame
-		btn.Size = UDim2.new(0, 80, 0, 40)
-		btn.Position = UDim2.new(0, (i-1) * 85, 0, 40)
-		btn.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-		btn.Text = tool
-		btn.TextColor3 = Color3.fromRGB(180, 180, 200)
-		btn.TextSize = 12
-		btn.Font = Enum.Font.GothamMedium
-		btn.BorderSizePixel = 1
-		btn.BorderColor3 = Color3.fromRGB(50, 50, 60)
-
-		btn.MouseButton1Click:Connect(function()
-			for _, b in pairs(BuilderFrame:GetChildren()) do
-				if b:IsA("TextButton") then
-					b.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-				end
-			end
-			btn.BackgroundColor3 = Color3.fromRGB(50, 70, 90)
-		end)
-	end
+    local info = Instance.new("TextLabel")
+    info.Parent = SettingsFrame
+    info.Size = UDim2.new(1, -20, 0, 200)
+    info.Position = UDim2.new(0, 10, 0, 40)
+    info.BackgroundTransparency = 1
+    info.Text = "Server: " .. SERVER_URL .. "\n\nStatus: Online"
+    info.TextColor3 = Color3.fromRGB(160, 160, 180)
+    info.TextSize = 13
+    info.Font = Enum.Font.GothamMedium
+    info.TextXAlignment = Enum.TextXAlignment.Left
+    info.TextYAlignment = Enum.TextYAlignment.Top
+    info.LineHeight = 1.5
 end
 
 local function createAboutUI()
-	for _, child in pairs(AboutFrame:GetChildren()) do
-		child:Destroy()
-	end
+    for _, child in pairs(AboutFrame:GetChildren()) do
+        child:Destroy()
+    end
 
-	local title = Instance.new("TextLabel")
-	title.Parent = AboutFrame
-	title.Size = UDim2.new(1, 0, 0, 30)
-	title.BackgroundTransparency = 1
-	title.Text = "About"
-	title.TextColor3 = Color3.fromRGB(200, 200, 220)
-	title.TextSize = 16
-	title.Font = Enum.Font.GothamBold
-	title.TextXAlignment = Enum.TextXAlignment.Left
+    local title = Instance.new("TextLabel")
+    title.Parent = AboutFrame
+    title.Size = UDim2.new(1, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.Text = "About"
+    title.TextColor3 = Color3.fromRGB(200, 200, 220)
+    title.TextSize = 16
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
 
-	local info = Instance.new("TextLabel")
-	info.Parent = AboutFrame
-	info.Size = UDim2.new(1, 0, 0, 200)
-	info.Position = UDim2.new(0, 0, 0, 40)
-	info.BackgroundTransparency = 1
-	info.Text = "Sheet Rat 2.6.1\n\nVersion: 2.6.1\nStatus: Online\n\nPlatform: Roblox\nDeveloper: Masmuu\n\nServer: " .. SERVER_URL
-	info.TextColor3 = Color3.fromRGB(160, 160, 180)
-	info.TextSize = 13
-	info.Font = Enum.Font.GothamMedium
-	info.TextXAlignment = Enum.TextXAlignment.Left
-	info.TextYAlignment = Enum.TextYAlignment.Top
-	info.LineHeight = 1.5
+    local info = Instance.new("TextLabel")
+    info.Parent = AboutFrame
+    info.Size = UDim2.new(1, 0, 0, 200)
+    info.Position = UDim2.new(0, 0, 0, 40)
+    info.BackgroundTransparency = 1
+    info.Text = "Sheet Rat 2.6.1\n\nServer Edition\n\nServer: " .. SERVER_URL .. "\n\nDeveloper: Masmuu"
+    info.TextColor3 = Color3.fromRGB(160, 160, 180)
+    info.TextSize = 13
+    info.Font = Enum.Font.GothamMedium
+    info.TextXAlignment = Enum.TextXAlignment.Left
+    info.TextYAlignment = Enum.TextYAlignment.Top
+    info.LineHeight = 1.5
 end
 
--- ============ ИНИЦИАЛИЗАЦИЯ ============
-
 createSettingsUI()
-createAutoTasksUI()
-createBuilderUI()
-createMapUI()
 createAboutUI()
 
-local currentTab = "Users"
+-- ============ ТАБЫ ============
 
 for tabName, btn in pairs(TabButtons) do
-	btn.MouseButton1Click:Connect(function()
-		for _, b in pairs(TabButtons) do
-			b.BackgroundTransparency = 1
-			b.TextColor3 = Color3.fromRGB(150, 150, 170)
-		end
-		btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-		btn.BackgroundTransparency = 0
-		btn.TextColor3 = Color3.fromRGB(220, 220, 240)
+    btn.MouseButton1Click:Connect(function()
+        for _, b in pairs(TabButtons) do
+            b.BackgroundTransparency = 1
+            b.TextColor3 = Color3.fromRGB(150, 150, 170)
+        end
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+        btn.BackgroundTransparency = 0
+        btn.TextColor3 = Color3.fromRGB(220, 220, 240)
 
-		currentTab = tabName
+        UsersFrame.Visible = (tabName == "Users")
+        ServerSideFrame.Visible = (tabName == "ServerSide")
+        SettingsFrame.Visible = (tabName == "Settings")
+        AutoTasksFrame.Visible = (tabName == "Auto Tasks")
+        BuilderFrame.Visible = (tabName == "Builder")
+        MapFrame.Visible = (tabName == "Map")
+        AboutFrame.Visible = (tabName == "About")
 
-		UsersFrame.Visible = (tabName == "Users")
-		ServerSideFrame.Visible = (tabName == "ServerSide")
-		SettingsFrame.Visible = (tabName == "Settings")
-		AutoTasksFrame.Visible = (tabName == "Auto Tasks")
-		BuilderFrame.Visible = (tabName == "Builder")
-		MapFrame.Visible = (tabName == "Map")
-		AboutFrame.Visible = (tabName == "About")
+        if tabName == "Users" then
+            updateUsersList()
+        end
 
-		if tabName == "Map" then
-			createMapUI()
-		end
-
-		if tabName == "Users" then
-			updateUsersList()
-		end
-
-		if tabName == "ServerSide" then
-			updateServerSideList()
-		end
-	end)
+        if tabName == "ServerSide" then
+            updateServerSideList()
+        end
+    end)
 end
 
 TabButtons["Users"].BackgroundColor3 = Color3.fromRGB(40, 40, 50)
@@ -1691,162 +807,109 @@ TabButtons["Users"].TextColor3 = Color3.fromRGB(220, 220, 240)
 -- ============ ОБРАБОТЧИКИ ============
 
 CloseButton.MouseButton1Click:Connect(function()
-	isHidden = true
-	MainFrame.Visible = false
-	MenuPopup.Visible = false
-	if spectateActive then
-		toggleSpectate()
-	end
-	if followActive then
-		toggleFollowPlayer(nil)
-	end
-	if freeCameraActive then
-		toggleFreeCamera()
-	end
+    isHidden = true
+    MainFrame.Visible = false
+    MenuPopup.Visible = false
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if input.KeyCode == Enum.KeyCode.F1 then
-		isHidden = not isHidden
-		MainFrame.Visible = not isHidden
-		if isHidden then
-			MenuPopup.Visible = false
-			if spectateActive then
-				toggleSpectate()
-			end
-			if followActive then
-				toggleFollowPlayer(nil)
-			end
-			if freeCameraActive then
-				toggleFreeCamera()
-			end
-		end
-	end
+    if processed then return end
+    if input.KeyCode == Enum.KeyCode.F1 then
+        isHidden = not isHidden
+        MainFrame.Visible = not isHidden
+    end
 end)
 
 MinimizeButton.MouseButton1Click:Connect(function()
-	isMinimized = not isMinimized
-	local targetSize = isMinimized and UDim2.new(0, 900, 0, 65) or UDim2.new(0, 900, 0, 600)
-	local targetPos = isMinimized and UDim2.new(0.5, -450, 0.5, -32.5) or UDim2.new(0.5, -450, 0.5, -300)
+    isMinimized = not isMinimized
+    local targetSize = isMinimized and UDim2.new(0, 900, 0, 65) or UDim2.new(0, 900, 0, 600)
+    local targetPos = isMinimized and UDim2.new(0.5, -450, 0.5, -32.5) or UDim2.new(0.5, -450, 0.5, -300)
 
-	local tween = TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = targetSize,
-		Position = targetPos
-	})
-	tween:Play()
+    local tween = TweenService:Create(MainFrame, TweenInfo.new(0.4, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+        Size = targetSize,
+        Position = targetPos
+    })
+    tween:Play()
 end)
 
--- ============ ИГРОКИ ============
-
-Players.PlayerAdded:Connect(function(newPlayer)
-	task.wait(0.1)
-	if not playerJoinTimes[newPlayer] then
-		playerJoinTimes[newPlayer] = tick()
-	end
-	updateUsersList()
-	OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
-	playNotificationSound()
-	showNotification(newPlayer)
+Players.PlayerAdded:Connect(function()
+    task.wait(0.1)
+    updateUsersList()
+    OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
 end)
 
-Players.PlayerRemoving:Connect(function(removingPlayer)
-	task.wait(0.1)
-	playerJoinTimes[removingPlayer] = nil
-	updateUsersList()
-	if selectedPlayer == removingPlayer then
-		selectedPlayer = nil
-		if spectateActive then
-			toggleSpectate()
-		end
-		if followActive then
-			toggleFollowPlayer(nil)
-		end
-		if freeCameraActive then
-			toggleFreeCamera()
-		end
-		MenuPopup.Visible = false
-	end
-	OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.1)
+    updateUsersList()
+    OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
 end)
 
 local function updateOnlineCount()
-	OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
+    OnlineLabel.Text = "Online ["..#Players:GetPlayers().."]"
 end
 
 RunService.Heartbeat:Connect(updateOnlineCount)
 
-for _, plr in ipairs(Players:GetPlayers()) do
-	if not playerJoinTimes[plr] then
-		playerJoinTimes[plr] = tick()
-	end
-end
-
 UserInputService.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		if MenuPopup.Visible then
-			local mousePos = Vector2.new(input.Position.X, input.Position.Y)
-			local popupPos = Vector2.new(MenuPopup.AbsolutePosition.X, MenuPopup.AbsolutePosition.Y)
-			local popupSize = Vector2.new(MenuPopup.AbsoluteSize.X, MenuPopup.AbsoluteSize.Y)
-			if not (mousePos.X >= popupPos.X and mousePos.X <= popupPos.X + popupSize.X and
-				mousePos.Y >= popupPos.Y and mousePos.Y <= popupPos.Y + popupSize.Y) then
-				MenuPopup.Visible = false
-			end
-		end
-	end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if MenuPopup.Visible then
+            local mousePos = Vector2.new(input.Position.X, input.Position.Y)
+            local popupPos = Vector2.new(MenuPopup.AbsolutePosition.X, MenuPopup.AbsolutePosition.Y)
+            local popupSize = Vector2.new(MenuPopup.AbsoluteSize.X, MenuPopup.AbsoluteSize.Y)
+            if not (mousePos.X >= popupPos.X and mousePos.X <= popupPos.X + popupSize.X and
+                mousePos.Y >= popupPos.Y and mousePos.Y <= popupPos.Y + popupSize.Y) then
+                MenuPopup.Visible = false
+            end
+        end
+    end
 end)
 
 local dragging = false
 local dragStart, startPos
 
 TitleBar.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = true
-		dragStart = input.Position
-		startPos = MainFrame.Position
-	end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
 end)
 
 UserInputService.InputEnded:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		dragging = false
-	end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = false
+    end
 end)
 
 UserInputService.InputChanged:Connect(function(input)
-	if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-		local delta = input.Position - dragStart
-		MainFrame.Position = UDim2.new(
-			startPos.X.Scale,
-			startPos.X.Offset + delta.X,
-			startPos.Y.Scale,
-			startPos.Y.Offset + delta.Y
-		)
-	end
+    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(
+            startPos.X.Scale,
+            startPos.X.Offset + delta.X,
+            startPos.Y.Scale,
+            startPos.Y.Offset + delta.Y
+        )
+    end
 end)
 
 -- ============ ЗАПУСК ============
 
 task.spawn(function()
-	-- Регистрируем игрока на сервере
-	local registered = registerPlayerOnServer()
-
-	if registered then
-		-- Обновляем список ServerSide
-		updateServerSideList()
-
-		-- Автообновление каждые 10 секунд
-		while true do
-			task.wait(10)
-			if ServerSideFrame.Visible then
-				updateServerSideList()
-			end
-		end
-	end
+    -- Регистрация на сервере
+    local registered = registerPlayer()
+    
+    if registered then
+        print("✅ Регистрация успешна!")
+        -- Обновляем список ServerSide
+        updateServerSideList()
+    else
+        print("❌ Ошибка регистрации на сервере")
+    end
 end)
 
 updateUsersList()
 updateServerSideList()
 
 print("✅ Sheet Rat 2.6.1 loaded!")
-print("📌 ServerSide: показывает игроков, подключенных к серверу " .. SERVER_URL)
+print("🌐 Server: " .. SERVER_URL)
