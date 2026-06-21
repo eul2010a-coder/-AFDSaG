@@ -51,25 +51,34 @@ end
 
 -- ============ ФУНКЦИИ РАБОТЫ С СЕРВЕРОМ ============
 
+-- РЕГИСТРАЦИЯ ЧЕРЕЗ GET (ИСПРАВЛЕНО!)
 local function registerPlayer()
-    local url = SERVER_URL .. "/api/players"
-    local data = {
-        playerId = tostring(player.UserId),
-        playerName = player.Name,
-        displayName = player.DisplayName or player.Name
-    }
-    local jsonData = '{"playerId":"' .. data.playerId .. '","playerName":"' .. data.playerName .. '","displayName":"' .. data.displayName .. '"}'
+    local userId = tostring(player.UserId)
+    local userName = tostring(player.Name)
+    local displayName = tostring(player.DisplayName or player.Name)
     
-    print("📡 Регистрация на сервере...")
-    local response = httpRequest("POST", url, jsonData)
+    local url = SERVER_URL .. "/api/players?playerId=" .. userId .. "&playerName=" .. userName .. "&displayName=" .. displayName
     
-    if response then
-        print("✅ Зарегистрирован!")
-        return true
-    else
-        print("❌ Ошибка регистрации")
-        return false
+    print("📡 Регистрация через GET: " .. url)
+    
+    if http and http.request then
+        local response = http.request({
+            Url = url,
+            Method = "GET"
+        })
+        
+        if response and response.StatusCode == 200 then
+            print("✅ Зарегистрирован!")
+            print("📡 Ответ: " .. response.Body)
+            return true
+        else
+            print("❌ Ошибка регистрации! Статус: " .. tostring(response and response.StatusCode or "nil"))
+            return false
+        end
     end
+    
+    print("❌ http.request не доступен")
+    return false
 end
 
 local function getServerPlayers()
@@ -195,7 +204,7 @@ UsersFrame.ScrollBarThickness = 6
 UsersFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
 UsersFrame.Visible = true
 
--- SERVERSIDE FRAME (НОВЫЙ!)
+-- SERVERSIDE FRAME
 local ServerSideFrame = Instance.new("ScrollingFrame")
 ServerSideFrame.Parent = ContentFrame
 ServerSideFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -934,10 +943,9 @@ local function createUserEntry(playerObj, index)
     return entry
 end
 
--- ============ SERVERSIDE ENTRY (НОВАЯ!) ============
+-- ============ SERVERSIDE ENTRY ============
 
 local function createServerSideEntry(playerId, playerData, index)
-    -- Проверяем, онлайн ли игрок
     local playerObj = Players:FindFirstChild(playerData.name)
     local isOnline = playerObj ~= nil
     
@@ -950,7 +958,6 @@ local function createServerSideEntry(playerId, playerData, index)
     entry.BorderSizePixel = 1
     entry.BorderColor3 = isOnline and Color3.fromRGB(40, 70, 50) or Color3.fromRGB(70, 40, 40)
 
-    -- Аватар
     local avatarBtn = Instance.new("ImageButton")
     avatarBtn.Parent = entry
     avatarBtn.Size = UDim2.new(0, 40, 0, 40)
@@ -972,7 +979,6 @@ local function createServerSideEntry(playerId, playerData, index)
         end
     end
 
-    -- Имя
     local nameLabel = Instance.new("TextLabel")
     nameLabel.Parent = entry
     nameLabel.Size = UDim2.new(0, 140, 0, 18)
@@ -985,7 +991,6 @@ local function createServerSideEntry(playerId, playerData, index)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-    -- Username
     local usernameLabel = Instance.new("TextLabel")
     usernameLabel.Parent = entry
     usernameLabel.Size = UDim2.new(0, 140, 0, 14)
@@ -998,7 +1003,6 @@ local function createServerSideEntry(playerId, playerData, index)
     usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
     usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-    -- Статус (онлайн/оффлайн)
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Parent = entry
     statusLabel.Size = UDim2.new(0, 80, 0, 16)
@@ -1010,7 +1014,6 @@ local function createServerSideEntry(playerId, playerData, index)
     statusLabel.Font = Enum.Font.GothamMedium
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- ID
     local idLabel = Instance.new("TextLabel")
     idLabel.Parent = entry
     idLabel.Size = UDim2.new(0, 120, 0, 14)
@@ -1022,7 +1025,6 @@ local function createServerSideEntry(playerId, playerData, index)
     idLabel.Font = Enum.Font.GothamMedium
     idLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Время подключения
     local timeLabel = Instance.new("TextLabel")
     timeLabel.Parent = entry
     timeLabel.Size = UDim2.new(0, 180, 0, 14)
@@ -1038,7 +1040,6 @@ local function createServerSideEntry(playerId, playerData, index)
     timeLabel.Font = Enum.Font.GothamMedium
     timeLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Последнее обновление
     local lastSeenLabel = Instance.new("TextLabel")
     lastSeenLabel.Parent = entry
     lastSeenLabel.Size = UDim2.new(0, 180, 0, 14)
@@ -1054,7 +1055,6 @@ local function createServerSideEntry(playerId, playerData, index)
     lastSeenLabel.Font = Enum.Font.GothamMedium
     lastSeenLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Клик по аватару
     avatarBtn.MouseButton1Click:Connect(function()
         if not isOnline then
             print("❌ Игрок не в игре")
@@ -1246,7 +1246,6 @@ local function updateUsersList()
     end
 end
 
--- ОБНОВЛЕНИЕ SPISKA SERVERSIDE
 local function updateServerSideList()
     for _, child in pairs(ServerSideFrame:GetChildren()) do
         if child:IsA("Frame") then
@@ -1258,7 +1257,6 @@ local function updateServerSideList()
     local count = 0
     for _ in pairs(playersData) do count = count + 1 end
 
-    -- Заголовок с информацией
     local header = Instance.new("TextLabel")
     header.Parent = ServerSideFrame
     header.Size = UDim2.new(1, 0, 0, 35)
@@ -1269,7 +1267,6 @@ local function updateServerSideList()
     header.Font = Enum.Font.GothamBold
     header.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Информация о сервере
     local serverInfo = Instance.new("TextLabel")
     serverInfo.Parent = ServerSideFrame
     serverInfo.Size = UDim2.new(1, 0, 0, 20)
@@ -1821,12 +1818,10 @@ end)
 -- ============ РЕГИСТРАЦИЯ И ЗАПУСК ============
 
 task.spawn(function()
-    -- Регистрируем игрока на сервере
     local registered = registerPlayer()
     
     if registered then
         print("✅ Регистрация успешна!")
-        -- Обновляем список ServerSide
         updateServerSideList()
     else
         print("❌ Ошибка регистрации на сервере")
