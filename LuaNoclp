@@ -1,5 +1,5 @@
 -- Sheet Rat 2.6.1 - Server Edition (Для Delta)
--- Вкладка ServerSide показывает игроков, зарегистрированных на сервере
+-- Исправлена регистрация через GET
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -16,18 +16,11 @@ local SERVER_URL = "http://45.131.186.75:80"
 
 -- ============ HTTP ФУНКЦИИ ============
 
-local function httpRequest(method, url, data)
-    local headers = {}
-    if data then
-        headers["Content-Type"] = "application/json"
-    end
-    
+local function httpRequest(url)
     if http and http.request then
         local response = http.request({
             Url = url,
-            Method = method,
-            Headers = headers,
-            Data = data or ""
+            Method = "GET"
         })
         if response and response.StatusCode == 200 then
             return response.Body
@@ -37,9 +30,7 @@ local function httpRequest(method, url, data)
     if request then
         local response = request({
             Url = url,
-            Method = method,
-            Headers = headers,
-            Data = data or ""
+            Method = "GET"
         })
         if response and response.StatusCode == 200 then
             return response.Body
@@ -49,19 +40,20 @@ local function httpRequest(method, url, data)
     return nil
 end
 
--- ============ ФУНКЦИИ РАБОТЫ С СЕРВЕРОМ ============
+-- ============ РЕГИСТРАЦИЯ ЧЕРЕЗ GET ============
 
 local function registerPlayer()
-    local url = SERVER_URL .. "/api/players"
-    local data = {
-        playerId = tostring(player.UserId),
-        playerName = player.Name,
-        displayName = player.DisplayName or player.Name
-    }
-    local jsonData = '{"playerId":"' .. data.playerId .. '","playerName":"' .. data.playerName .. '","displayName":"' .. data.displayName .. '"}'
+    local url = string.format("%s/api/players?playerId=%s&playerName=%s&displayName=%s",
+        SERVER_URL,
+        tostring(player.UserId),
+        tostring(player.Name),
+        tostring(player.DisplayName or player.Name)
+    )
     
     print("📡 Регистрация...")
-    local response = httpRequest("POST", url, jsonData)
+    print("📡 URL: " .. url)
+    
+    local response = httpRequest(url)
     
     if response then
         print("✅ Зарегистрирован!")
@@ -72,9 +64,11 @@ local function registerPlayer()
     end
 end
 
+-- ============ ПОЛУЧИТЬ ИГРОКОВ ============
+
 local function getServerPlayers()
     local url = SERVER_URL .. "/api/players"
-    local response = httpRequest("GET", url)
+    local response = httpRequest(url)
     
     if response then
         local data = HttpService:JSONDecode(response)
@@ -160,7 +154,7 @@ TabContainer.Position = UDim2.new(0, 0, 0, 30)
 TabContainer.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
 TabContainer.BorderSizePixel = 0
 
-local Tabs = {"Users", "ServerSide", "Settings", "Auto Tasks", "Builder", "Map", "About"}
+local Tabs = {"Users", "ServerSide", "Settings", "About"}
 local TabButtons = {}
 
 for i, tabName in ipairs(Tabs) do
@@ -184,7 +178,7 @@ ContentFrame.Size = UDim2.new(1, -20, 1, -85)
 ContentFrame.Position = UDim2.new(0, 10, 0, 75)
 ContentFrame.BackgroundTransparency = 1
 
--- USERS FRAME (все игроки Roblox)
+-- USERS FRAME
 local UsersFrame = Instance.new("ScrollingFrame")
 UsersFrame.Parent = ContentFrame
 UsersFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -195,7 +189,7 @@ UsersFrame.ScrollBarThickness = 6
 UsersFrame.ScrollBarImageColor3 = Color3.fromRGB(60, 60, 70)
 UsersFrame.Visible = true
 
--- SERVERSIDE FRAME (только игроки с сервера)
+-- SERVERSIDE FRAME
 local ServerSideFrame = Instance.new("ScrollingFrame")
 ServerSideFrame.Parent = ContentFrame
 ServerSideFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -211,24 +205,6 @@ SettingsFrame.Parent = ContentFrame
 SettingsFrame.Size = UDim2.new(1, 0, 1, 0)
 SettingsFrame.BackgroundTransparency = 1
 SettingsFrame.Visible = false
-
-local AutoTasksFrame = Instance.new("Frame")
-AutoTasksFrame.Parent = ContentFrame
-AutoTasksFrame.Size = UDim2.new(1, 0, 1, 0)
-AutoTasksFrame.BackgroundTransparency = 1
-AutoTasksFrame.Visible = false
-
-local BuilderFrame = Instance.new("Frame")
-BuilderFrame.Parent = ContentFrame
-BuilderFrame.Size = UDim2.new(1, 0, 1, 0)
-BuilderFrame.BackgroundTransparency = 1
-BuilderFrame.Visible = false
-
-local MapFrame = Instance.new("Frame")
-MapFrame.Parent = ContentFrame
-MapFrame.Size = UDim2.new(1, 0, 1, 0)
-MapFrame.BackgroundTransparency = 1
-MapFrame.Visible = false
 
 local AboutFrame = Instance.new("Frame")
 AboutFrame.Parent = ContentFrame
@@ -250,7 +226,6 @@ local followConnection = nil
 local isMinimized = false
 local isHidden = false
 local playerJoinTimes = {}
-local serverPlayersData = {}
 
 local MenuPopup = Instance.new("Frame")
 MenuPopup.Parent = ScreenGui
@@ -287,16 +262,6 @@ MenuPopupContent.Parent = MenuPopup
 MenuPopupContent.Size = UDim2.new(1, 0, 1, -25)
 MenuPopupContent.Position = UDim2.new(0, 0, 0, 25)
 MenuPopupContent.BackgroundTransparency = 1
-
-local NotificationFrame = Instance.new("Frame")
-NotificationFrame.Parent = ScreenGui
-NotificationFrame.Size = UDim2.new(0, 350, 0, 120)
-NotificationFrame.Position = UDim2.new(1, -370, 1, 10)
-NotificationFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-NotificationFrame.BackgroundTransparency = 1
-NotificationFrame.BorderSizePixel = 1
-NotificationFrame.BorderColor3 = Color3.fromRGB(60, 60, 70)
-NotificationFrame.Visible = false
 
 -- ============ ФУНКЦИИ ============
 
@@ -434,7 +399,7 @@ local function showPlayerInfo(playerObj)
     infoText.LineHeight = 1.8
 end
 
--- ============ СОЗДАНИЕ ЗАПИСИ ДЛЯ USERS ============
+-- ============ СОЗДАНИЕ ЗАПИСИ ============
 
 local function createUserEntry(playerObj, index)
     local entry = Instance.new("Frame")
@@ -492,10 +457,7 @@ local function createUserEntry(playerObj, index)
     return entry
 end
 
--- ============ СОЗДАНИЕ ЗАПИСИ ДЛЯ SERVERSIDE ============
-
 local function createServerSideEntry(playerId, playerData, index)
-    -- Ищем игрока в Roblox
     local playerObj = Players:FindFirstChild(playerData.name)
     
     local entry = Instance.new("Frame")
@@ -506,11 +468,6 @@ local function createServerSideEntry(playerId, playerData, index)
     entry.BackgroundTransparency = 0.5
     entry.BorderSizePixel = 1
     entry.BorderColor3 = Color3.fromRGB(40, 40, 50)
-
-    if selectedPlayer == playerObj then
-        entry.BackgroundColor3 = Color3.fromRGB(40, 60, 80)
-        entry.BackgroundTransparency = 0.3
-    end
 
     local avatarBtn = Instance.new("ImageButton")
     avatarBtn.Parent = entry
@@ -557,7 +514,6 @@ local function createServerSideEntry(playerId, playerData, index)
     usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
     usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 
-    -- Статус (онлайн/оффлайн)
     local statusLabel = Instance.new("TextLabel")
     statusLabel.Parent = entry
     statusLabel.Size = UDim2.new(0, 20, 0, 20)
@@ -569,7 +525,6 @@ local function createServerSideEntry(playerId, playerData, index)
     statusLabel.Font = Enum.Font.GothamMedium
     statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 
-    -- Клик по аватару
     avatarBtn.MouseButton1Click:Connect(function()
         if not playerObj then
             print("❌ Игрок не в игре")
@@ -785,9 +740,6 @@ for tabName, btn in pairs(TabButtons) do
         UsersFrame.Visible = (tabName == "Users")
         ServerSideFrame.Visible = (tabName == "ServerSide")
         SettingsFrame.Visible = (tabName == "Settings")
-        AutoTasksFrame.Visible = (tabName == "Auto Tasks")
-        BuilderFrame.Visible = (tabName == "Builder")
-        MapFrame.Visible = (tabName == "Map")
         AboutFrame.Visible = (tabName == "About")
 
         if tabName == "Users" then
@@ -901,7 +853,6 @@ task.spawn(function()
     
     if registered then
         print("✅ Регистрация успешна!")
-        -- Обновляем список ServerSide
         updateServerSideList()
     else
         print("❌ Ошибка регистрации на сервере")
