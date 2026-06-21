@@ -16,12 +16,15 @@ local lastServerUpdate = 0
 
 -- ============ HTTP ДЛЯ DELTA ============
 
+-- ============ HTTP ФУНКЦИЯ (ИСПРАВЛЕНА) ============
+
 local function httpRequest(method, url, data)
     local headers = {}
     if data then
         headers["Content-Type"] = "application/json"
     end
     
+    -- Пробуем http.request
     if http and http.request then
         local response = http.request({
             Url = url,
@@ -29,11 +32,13 @@ local function httpRequest(method, url, data)
             Headers = headers,
             Data = data or ""
         })
-        if response and response.StatusCode == 200 then
-            return response.Body
+        -- Возвращаем ВЕСЬ ответ, не только при 200
+        if response then
+            return response
         end
     end
     
+    -- Пробуем request
     if request then
         local response = request({
             Url = url,
@@ -41,17 +46,16 @@ local function httpRequest(method, url, data)
             Headers = headers,
             Data = data or ""
         })
-        if response and response.StatusCode == 200 then
-            return response.Body
+        if response then
+            return response
         end
     end
     
     return nil
 end
 
--- ============ ФУНКЦИИ РАБОТЫ С СЕРВЕРОМ ============
+-- ============ РЕГИСТРАЦИЯ ЧЕРЕЗ GET (ИСПРАВЛЕНА) ============
 
--- РЕГИСТРАЦИЯ ЧЕРЕЗ GET (ИСПРАВЛЕНО!)
 local function registerPlayer()
     local userId = tostring(player.UserId)
     local userName = tostring(player.Name)
@@ -61,32 +65,33 @@ local function registerPlayer()
     
     print("📡 Регистрация через GET: " .. url)
     
-    if http and http.request then
-        local response = http.request({
-            Url = url,
-            Method = "GET"
-        })
+    local response = httpRequest("GET", url)
+    
+    if response then
+        print("📡 Статус: " .. tostring(response.StatusCode))
+        print("📡 Ответ: " .. tostring(response.Body))
         
-        if response and response.StatusCode == 200 then
+        if response.StatusCode == 200 then
             print("✅ Зарегистрирован!")
-            print("📡 Ответ: " .. response.Body)
             return true
         else
-            print("❌ Ошибка регистрации! Статус: " .. tostring(response and response.StatusCode or "nil"))
+            print("❌ Ошибка регистрации! Статус: " .. response.StatusCode)
             return false
         end
+    else
+        print("❌ Нет ответа от сервера")
+        return false
     end
-    
-    print("❌ http.request не доступен")
-    return false
 end
+
+-- ============ ПОЛУЧИТЬ ИГРОКОВ С СЕРВЕРА ============
 
 local function getServerPlayers()
     local url = SERVER_URL .. "/api/players"
     local response = httpRequest("GET", url)
     
-    if response then
-        local data = HttpService:JSONDecode(response)
+    if response and response.StatusCode == 200 then
+        local data = HttpService:JSONDecode(response.Body)
         if data and data.players then
             return data.players
         end
